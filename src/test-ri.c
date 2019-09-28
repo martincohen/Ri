@@ -100,6 +100,7 @@ testri_file_(const char* name)
 void
 testri_resolve() {
     testri_file_("test1");
+    testri_file_("if1");
     testri_file_("for1");
 }
 
