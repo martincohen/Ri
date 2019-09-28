@@ -1,0 +1,24 @@
+func main(a int32, b float32) (r int32)
+{
+    var x int32;
+    var y int32 = x;
+
+    x = y + y;
+
+    if var u int32 = x; u + a {
+        x = u + b;
+    } else if u {
+        x = u;
+    } else {
+        y = u;
+    }
+
+    if a {
+        r = a;
+        return;
+    }
+
+    main(x, y);
+    return x;
+};
+main();

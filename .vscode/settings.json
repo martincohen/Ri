@@ -1,0 +1,37 @@
+{
+    "files.associations": {
+        "*.odin": "odin",
+        "*.ri": "go",
+        "*.h": "c",
+        "*.rlex": "lua",
+        "initializer_list": "cpp",
+        "type_traits": "cpp",
+        "xutility": "cpp",
+        "xmemory0": "cpp",
+        "iosfwd": "cpp",
+        "xmemory": "cpp",
+        "utility": "cpp",
+        "xstddef": "cpp",
+        "xtr1common": "cpp",
+        "*.rh": "c",
+        "ctype.h": "c",
+        "xstring": "c",
+        "xlocale": "c",
+        "xlocnum": "c",
+        "system_error": "c",
+        "list": "c",
+        "vector": "c",
+        "xhash": "c"
+    },
+    "search.exclude": {
+        "**/.env": true,
+        "**/.env-laptop": true,
+        "**/__pycache__": true,
+        "**/.git": true
+    },
+    "window.title": "RI - ${activeEditorShort}",
+    "python.pythonPath": "${workspaceFolder}\\.env\\Scripts\\python.exe",
+    "python.linting.enabled": false,
+    "typescript.validate.enable": false,
+    "javascript.validate.enable": false
+}
