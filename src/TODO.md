@@ -2,22 +2,22 @@
 
 See and update README.md for public tasks.
 
-[ ] Get rid of `Ref` node type?
+- [ ] Get rid of `Ref` node type?
     - It's a "marker" of where the decl was.
-[ ] Errors
-    [ ] Full error reporting.
-        [ ] Pass position.
-        [ ] Show full error.
-    [ ] Testing error states.
-[ ] Implement `Type_Pointer`.
-[ ] Refactor `Type`
-    [ ] Implement instance of a function as a pointer to `Type_Func`.
-    [ ] Implement a `Decl_Type` node.
-    [ ] Implement a `Type` node.
+- [ ] Errors
+    - [ ] Full error reporting.
+        - [ ] Pass position.
+        - [ ] Show full error.
+    - [ ] Testing error states.
+- [ ] Implement `Type_Pointer`.
+- [ ] Refactor `Type`
+    - [ ] Implement instance of a function as a pointer to `Type_Func`.
+    - [ ] Implement a `Decl_Type` node.
+    - [ ] Implement a `Type` node.
 
 # Later
 
-[ ] Use `longjmp` for error handling. Register arrays to `ri->array`:
+- [ ] Use `longjmp` for error handling. Register arrays to `ri->array`:
 ```c
     Array(RiNode*) arguments = {0};
     ri_array_push_(ri, &arguments);
@@ -26,11 +26,11 @@ See and update README.md for public tasks.
     return ri_make_call_(ri, arguments); // <- registered to AST
 ```
     - https://en.cppreference.com/w/cpp/utility/program/setjmp
-[ ] Properly `purge` AST (dealloc arrays).
-[ ] Type inference:
-    [ ] Implement `var x = <expr>;` for type inference.
-[ ] Collapse FIRST and LAST values in enums.
-[ ] Implement this?
+- [ ] Properly `purge` AST (dealloc arrays).
+- [ ] Type inference:
+    - [ ] Implement `var x = <expr>;` for type inference.
+- [ ] Collapse FIRST and LAST values in enums.
+- [ ] Implement this?
         - `var main function(...)`
         - `main = { ... }`
 
