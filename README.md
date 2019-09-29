@@ -16,6 +16,9 @@ Project is planned to be split to STB-style modules:
 - `ri-vm.h`
     - Library
     - Take _RiVM_ blob, run it.
+
+Standalone programs:
+
 - `ri-to-c.c`
     - Program
     - Take _RiAST_, output C file(s).
