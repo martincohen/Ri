@@ -41,6 +41,7 @@ To be changed to:
 - `for <pre-st>; <condition>; <post-st> { ... }`
 - `for <pre-st>; ; <post-st> { ... }`
 - `for <pre-st>; ; { ... }`
+- `for ; ; <post-st> { ... }`
 - `for ; <condition>; { ... }`
 - `for ; ; { ... }`
 - `for <condition> { ... }`
