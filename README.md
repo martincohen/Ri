@@ -2,6 +2,37 @@
 
 _Ri_ is statically typed embeddable language.
 
+# Motivation
+
+- Language to replace Lua where more stable performance and control is needed.
+- Language to replace C with language of similar control, but better possibility of code organization (packages or namespaces).
+- Language that maps APIs and paradigms to the script with zero friction.
+
+## Runt
+
+Project is not being made in isolation, it is made as a direct requirement of [Runt](https://github.com/martincohen/Runt) project. _Runt_ needs this for it's configuration, command customization and extensions.
+
+# Inspiration
+
+- [Go](https://golang.org/ref/spec) -- Love syntax and a feature set of Go (minus garbage collection)
+- [WebAssembly](https://webassembly.github.io/spec/core/index.html) -- Love most of the design, VM takes big chunk of notes from this.
+- [Quake3 VM](https://www.icculus.org/~phaethon/q3mc/q3vm_specs.html) -- Love idea of compiling VM to x64 at runtime, VM/x64 takes notes from this.
+- [Bitwise's Ion](https://github.com/pervognsen/bitwise/tree/master/ion) -- Ideas and knowledge stolen with love.
+
+# Features
+
+- Embeddable.
+- STB-style libaries.
+- Minimal binary size.
+- No cstdlib dependency.
+- No LLVM dependency.
+
+- Type inference.
+- No built-in memory management.
+- Packages.
+- Most of what C does.
+- Bring your own library code.
+
 # Organization
 
 Project is planned to be split to STB-style modules:
