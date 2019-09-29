@@ -46,11 +46,19 @@ To be changed to:
 - `for ; ; { ... }`
 - `for <condition> { ... }`
 
+#### `while` statement
+
+```go
+for condition {
+    work();
+}
+```
+
 #### `do-while` statement
 
 ```go
 for var ok = true; ok; ok = condition {
-    work()
+    work();
 }
 ```
 
@@ -58,7 +66,7 @@ for var ok = true; ok; ok = condition {
 
 ```go
 for var ok = true; ok; ok = !condition {
-    work()
+    work();
 }
 ```
 
