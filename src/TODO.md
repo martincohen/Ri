@@ -1,31 +1,19 @@
-[x] Implement `+` and `-`.
-[x] Implement calls `id(expr, expr, ...)`
-[x] Implement separation between Decl and actual resolved node:
-[x] Implement `var x int32 = <expr>;` for var initialization.
-[x] Reimplement proper Go syntax for:
-    - Function prototypes (function without body):
-        `function <name>(...) (...)`
-    - Function types (function without name and body):
-        `function (...) (...)`
-        `type <id> function (...) (...)`
-[x] Store child nodes in arrays instead of slices.
-    - That would allow the children to be modified additionally.
-    - Would require thorough purge.
-[x] Implement scope for function arguments.
-[x] `return` statement (`return expr;`)
-[x] `if` statement
-    - `if statement;? condition { ... } else? { ... }?`
+# To do (messy)
 
-[ ] Implement `else if | block` support.
-[ ] Implement instance of a function as a pointer to `Type_Func`.
-[ ] Implement a `Decl_Type` node.
-[ ] Implement a `Type` node.
-[ ] Implement rest of operators needed for scalar operations.
+See and update README.md for public tasks.
+
 [ ] Get rid of `Ref` node type?
     - It's a "marker" of where the decl was.
-[ ] Full error reporting.
-    [ ] Pass position.
-    [ ] Show full error.
+[ ] Errors
+    [ ] Full error reporting.
+        [ ] Pass position.
+        [ ] Show full error.
+    [ ] Testing error states.
+[ ] Implement `Type_Pointer`.
+[ ] Refactor `Type`
+    [ ] Implement instance of a function as a pointer to `Type_Func`.
+    [ ] Implement a `Decl_Type` node.
+    [ ] Implement a `Type` node.
 
 # Later
 
