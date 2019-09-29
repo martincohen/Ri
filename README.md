@@ -1,6 +1,6 @@
 # Ri
 
-_Ri_ is statically typed embeddable language.
+Tiny statically-typed (embeddable) language.
 
 # Motivation
 
