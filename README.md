@@ -56,26 +56,6 @@ Standalone programs:
     - Run compiler.
     - Run executable.
 
-# To be determined
-
-Language details to be determined.
-
-- [ ] Multiple function output arguments
-    - In C implemented as non-const pointer parameters.
-    - Really wanted only for error reporting.
-        - Zero, one or two outputs only?
-        - Single output with one additional implicit `error` output?
-- [x] Named function output argument(s)
-- [x] Strings
-    - [x] `[]char8`, `[]char16`, `[]char32` slices
-    - [x] No zero-termination guarantee.
-    - [x] No `string + string` bullshit.
-    - [ ] How to deal with zero-terminated strings for C APIs compatibility?
-- [ ] Boolean types
-    - 32-bit bool, or 1-bit bool?
-    - Other options?
-- [ ] _Go_ interfaces
-
 # To do
 
 The work is split to phases:
@@ -142,37 +122,70 @@ The list will grow as I go.
     - [x] `for <condition> { ... }`
     - [ ] Type checking.
 - [ ] Arithmetic expressions
-    - [ ] `-a`
-    - [ ] `+a`
+    - [x] `-a`
+    - [x] `+a`
+    - [ ] `--a` (L)
+    - [ ] `++a` (L)
+    - [ ] `a--` (L)
+    - [ ] `a++` (L)
     - [x] `a + b`
     - [x] `a - b`
-    - [ ] `a * b`
-    - [ ] `a / b`
-    - [ ] `a % b`
+    - [x] `a * b`
+    - [x] `a / b`
+    - [x] `a % b`
     - [x] `a = b`
     - [x] `a += b`
     - [x] `a -= b`
-    - [ ] `a *= b`
-    - [ ] `a /= b`
+    - [x] `a *= b`
+    - [x] `a /= b`
 - [ ] Bitwise expressions
-    - [ ] `~n`
-    - [ ] `a ^ b`
-    - [ ] `a & b`
-    - [ ] `a | b`
-    - [ ] `a << b`
-    - [ ] `a >> b`
-    - [ ] `a &= b`
-    - [ ] `a |= b`
-    - [ ] `a ^= b`
+    - [x] `~n`
+    - [x] `a ^ b`
+    - [x] `a & b`
+    - [x] `a | b`
+    - [x] `a << b`
+    - [x] `a >> b`
+    - [x] `a &= b`
+    - [x] `a |= b`
+    - [x] `a ^= b`
 - [ ] Comparison expressions
-    - [ ] `a < b`
-    - [ ] `a > b`
-    - [ ] `a <= b`
-    - [ ] `a >= b`
-    - [ ] `a == b`
-    - [ ] `a != b`
+    - [x] `a < b`
+    - [x] `a > b`
+    - [x] `a <= b`
+    - [x] `a >= b`
+    - [x] `a == b`
+    - [x] `a != b`
 - [ ] Boolean expressions
-    - [ ] `!n`
-    - [ ] `a && b`
-    - [ ] `a || b`
+    - [x] `!n`
+    - [x] `a && b`
+    - [x] `a || b`
 - [ ] Type checking, coercion and promotion for expressions.
+
+# To be determined
+
+Language details to be determined.
+
+- [ ] Multiple function output arguments
+    - In C implemented as non-const pointer parameters.
+    - Really wanted only for error reporting.
+        - Zero, one or two outputs only?
+        - Single output with one additional implicit `error` output?
+- [x] Named function output argument(s)
+- [x] Strings
+    - [x] `[]char8`, `[]char16`, `[]char32` slices
+    - [x] No zero-termination guarantee.
+    - [x] No `string + string` bullshit.
+    - [ ] How to deal with zero-terminated strings for C APIs compatibility?
+- [ ] Boolean types
+    - 32-bit bool, or 1-bit bool?
+    - Other options?
+- [ ] _Go_ interfaces
+- [ ] Code in root?
+    - Module is function?
+    - Module has root code as `main` function?
+    - Pros:
+        - Good for scripting.
+        - Good for module initialization.
+    - Cons:
+        - Incompatible with C's `#include` (initialization has to be called manually)
+- [ ] Context as silent argument?

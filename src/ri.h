@@ -36,8 +36,10 @@ struct RiError {
 //
 //
 
-enum RiTokenKind {
+enum RiTokenKind
+{
     RiToken_Unknown,
+
     RiToken_End,
     RiToken_Identifier,
 
@@ -58,26 +60,62 @@ enum RiTokenKind {
     RiToken_Keyword_Default,
     RiToken_Keyword_Break,
     RiToken_Keyword_Continue,
+    RiToken_Keyword_Fallthrough,
 
     RiToken_LP,
     RiToken_RP,
     RiToken_LB,
     RiToken_RB,
+    RiToken_Dot,
     RiToken_Comma,
     RiToken_Semicolon,
 
     RiToken_Plus,
     RiToken_Minus,
+    RiToken_Star,
+    RiToken_Slash,
+    RiToken_Percent,
 
-    RiToken_Eq_FIRST__,
+    RiToken_PlusPlus,
+    RiToken_MinusMinus,
+
+    RiToken_Assign_FIRST__,
         RiToken_Eq,
         RiToken_PlusEq,
         RiToken_MinusEq,
-    RiToken_Eq_LAST__,
+        RiToken_StarEq,
+        RiToken_SlashEq,
+        RiToken_PercentEq,
+        RiToken_AmpEq,
+        RiToken_PipeEq,
+        RiToken_BeakEq,
+    RiToken_Assign_LAST__,
 
-    RiToken_EqEq,
+    RiToken_Comparison_FIRST__,
+        RiToken_Lt,
+        RiToken_Gt,
+        RiToken_LtEq,
+        RiToken_GtEq,
+        RiToken_EqEq,
+        RiToken_BangEq,
+    RiToken_Comparison_LAST__,
 
-    RiToken_
+    RiToken_Bitwise_FIRST__,
+        RiToken_Amp,
+        RiToken_Pipe,
+        RiToken_Beak,
+        RiToken_Tilde,
+        RiToken_LtLt,
+        RiToken_GtGt,
+    RiToken_Bitwise_LAST__,
+
+    RiToken_Boolean_FIRST__,
+        RiToken_Bang,
+        RiToken_AmpAmp,
+        RiToken_PipePipe,
+    RiToken_Boolean_LAST__,
+
+    RiToken_COUNT__
 };
 
 #define ri_tokenkind_in(TokenKind, Prefix) \
@@ -156,13 +194,64 @@ enum RiNodeKind
     RiNode_Expr_FIRST__,
         RiNode_Expr_Identifier,
         RiNode_Expr_Variable,
-        RiNode_Expr_Unary,
-        RiNode_Expr_Binary_FIRST__,
-            RiNode_Expr_Binary_Plus,
-            RiNode_Expr_Binary_Minus,
-        RiNode_Expr_Binary_LAST__,
         RiNode_Expr_Call,
+        RiNode_Expr_AddrOf,
+
+        RiNode_Expr_Unary_FIRST__,
+            // Arithmetic
+            RiNode_Expr_Unary_Positive,
+            RiNode_Expr_Unary_Negative,
+            RiNode_Expr_Unary_IncPost,
+            RiNode_Expr_Unary_DecPost,
+            RiNode_Expr_Unary_IncPre,
+            RiNode_Expr_Unary_DecPre,
+            // Bitwise
+            RiNode_Expr_Unary_BNeg,
+            // Boolean
+            RiNode_Expr_Unary_Not,
+        RiNode_Expr_Unary_LAST__,
+
+        RiNode_Expr_Binary_FIRST__,
+            // Arithmetic
+            RiNode_Expr_Binary_Add,
+            RiNode_Expr_Binary_Sub,
+            RiNode_Expr_Binary_Mul,
+            RiNode_Expr_Binary_Div,
+            RiNode_Expr_Binary_Mod,
+            // Bitwise
+            RiNode_Expr_Binary_BXor,
+            RiNode_Expr_Binary_BAnd,
+            RiNode_Expr_Binary_BOr,
+            RiNode_Expr_Binary_BShL,
+            RiNode_Expr_Binary_BShR,
+            // Boolean
+            RiNode_Expr_Binary_And,
+            RiNode_Expr_Binary_Or,
+            // Syntax
+            RiNode_Expr_Binary_Select,
+
+            RiNode_Expr_Binary_Comparison_FIRST__,
+                RiNode_Expr_Binary_Comparison_Lt,
+                RiNode_Expr_Binary_Comparison_Gt,
+                RiNode_Expr_Binary_Comparison_LtEq,
+                RiNode_Expr_Binary_Comparison_GtEq,
+                RiNode_Expr_Binary_Comparison_Eq,
+                RiNode_Expr_Binary_Comparison_NotEq,
+            RiNode_Expr_Binary_Comparison_LAST__,
+        RiNode_Expr_Binary_LAST__,
     RiNode_Expr_LAST__,
+
+    RiNode_St_Assign_FIRST__,
+        RiNode_St_Assign,
+        RiNode_St_Assign_Add,
+        RiNode_St_Assign_Sub,
+        RiNode_St_Assign_Mul,
+        RiNode_St_Assign_Div,
+        RiNode_St_Assign_Mod,
+        RiNode_St_Assign_And,
+        RiNode_St_Assign_Or,
+        RiNode_St_Assign_Xor,
+    RiNode_St_Assign_LAST__,
 
     RiNode_St_Expr,
     RiNode_St_Return,
@@ -170,11 +259,8 @@ enum RiNodeKind
     RiNode_St_For,
     RiNode_St_Switch,
     RiNode_St_Switch_Case,
-    RiNode_St_Assign_FIRST__,
-        RiNode_St_Assign,
-        RiNode_St_Assign_Plus,
-        RiNode_St_Assign_Minus,
-    RiNode_St_Assign_LAST__,
+
+    RiNode_COUNT__
 };
 
 #define ri_nodekind_in(NodeKind, Prefix) \
@@ -232,18 +318,20 @@ struct RiNode
         } expr_variable;
         struct {
             // NOTE: Data used by all RiNode_Expr_Binary_* types.
+            // NOTE: Data used by all RiNode_St_Assign_* types.
             RiNode* argument0;
             RiNode* argument1;
-        } expr_binary;
+        } binary;
         struct {
             // NOTE: Data used by all RiNode_Expr_Unary_* types.
             RiNode* argument;
-        } expr_unary;
+        } unary;
         struct {
             RiNode* func;
             RiNodeArray arguments;
         } expr_call;
         struct {
+            // TODO: Merge with expr_call member?
             // NOTE: Can be NULL.
             RiNode* argument;
         } st_return;
@@ -263,11 +351,6 @@ struct RiNode
             RiNode* post;
             RiNode* scope;
         } st_for;
-        struct {
-            // NOTE: Can be either a variable or ref to declaration of a variable.
-            RiNode* argument0;
-            RiNode* argument1;
-        } st_assign;
         RiNode* st_expr;
     };
 };
@@ -304,6 +387,7 @@ struct Ri {
     const char* id_default;
     const char* id_break;
     const char* id_continue;
+    const char* id_fallthrough;
 };
 
 //
