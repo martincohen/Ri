@@ -117,6 +117,9 @@ The list will grow as I go.
     - [ ] Union
     - [ ] Enum
     - [ ] Slices
+- [ ] Comments
+    - [x] Line comments
+    - [ ] Block comments
 - [x] Function declaration
     - [x] `function <name> (<inputs>) (<outputs>) { ... }`
 - [x] Function prototype declaration
