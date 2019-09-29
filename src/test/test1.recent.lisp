@@ -40,7 +40,7 @@
               )
               (st-assign
                 (var 'x')
-                (expr-plus
+                (expr-add
                   (var 'y')
                   (var 'y')
                 )
@@ -53,7 +53,7 @@
                   )
                 )
                 (condition
-                  (expr-plus
+                  (expr-add
                     (var 'u')
                     (var 'a')
                   )
@@ -70,7 +70,7 @@
                       (code
                         (st-assign
                           (var 'x')
-                          (expr-plus
+                          (expr-add
                             (var 'u')
                             (var 'b')
                           )
@@ -161,4 +161,6 @@
       )
     )
   )
+)
+
 )

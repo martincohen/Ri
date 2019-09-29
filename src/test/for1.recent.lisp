@@ -19,7 +19,7 @@
       (post
         (st-assign
           (var 'i')
-          (expr-plus
+          (expr-add
             (var 'i')
             (var 'x')
           )
@@ -83,7 +83,7 @@
       (post
         (st-assign
           (var 'i')
-          (expr-plus
+          (expr-add
             (var 'i')
             (var 'x')
           )
@@ -139,7 +139,7 @@
       (post
         (st-assign
           (var 'x')
-          (expr-plus
+          (expr-add
             (var 'x')
             (var 'x')
           )
@@ -243,4 +243,6 @@
       )
     )
   )
+)
+
 )
