@@ -4,15 +4,23 @@
 
 Currently required with rules similar to C. Will be re-evaluated to see whether they can be removed.
 
-## `function` declaration
+## Declarations
+
+### `function` declaration
 
 - `function <name> (arg, arg,...) (arg, arg, ...) {...}`
 
-### Function arguments
+#### Function arguments
 
 - `<name> <type-spec>`
 
-## `return` statement
+### `var` declaration
+
+- `var <name> <type>`
+
+## Statements
+
+### `return` statement
 
 - `return ...;`
 
@@ -21,14 +29,14 @@ To be changed to:
 - `return (...)`
 - `return`
 
-## `if` statement
+### `if` statement
 
 - `if <pre-st>; <condition> { ... }`
 - `if <condition> { ... }`
 - `if ... { ... } else { ... }`
 - `if ... { ... } else if ...`
 
-## `for` statement
+### `for` statement
 
 - `for <pre-st>; <condition>; <post-st> { ... }`
 - `for <pre-st>; ; <post-st> { ... }`
@@ -37,23 +45,23 @@ To be changed to:
 - `for ; ; { ... }`
 - `for <condition> { ... }`
 
-### `do-while` statement
+#### `do-while` statement
 
 ```go
-for ok := true; ok; ok = condition {
+for var ok = true; ok; ok = condition {
     work()
 }
 ```
 
-### `repeat-until` statement
+#### `repeat-until` statement
 
 ```go
-for ok := true; ok; ok = !condition {
+for var ok = true; ok; ok = !condition {
     work()
 }
 ```
 
-## Assignment statements
+### Assignment statements
 
 - `a = b`
 - `a += b`
