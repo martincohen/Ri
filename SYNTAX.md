@@ -12,7 +12,7 @@ Currently required with rules similar to C. Will be re-evaluated to see whether 
 
 #### Function arguments
 
-- `<name> <type-spec>`
+- `<name> <type>`
 
 ### `var` declaration
 
