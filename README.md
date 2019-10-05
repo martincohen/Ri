@@ -178,7 +178,7 @@ Language details to be determined.
         - Zero, one or two outputs only?
         - Single output with one additional implicit `error` output?
 - :white_square_button: Named function output argument(s)
-    -
+    - Will attempt.
 - :white_square_button: Strings
     - :white_square_button: `[]char8`, `[]char16`, `[]char32` slices
     - :white_square_button: No zero-termination guarantee.
