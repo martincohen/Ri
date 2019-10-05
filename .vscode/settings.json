@@ -30,8 +30,7 @@
         "**/.git": true
     },
     "window.title": "RI - ${activeEditorShort}",
-    "python.pythonPath": "${workspaceFolder}\\.env\\Scripts\\python.exe",
-    "python.linting.enabled": false,
-    "typescript.validate.enable": false,
-    "javascript.validate.enable": false
+    "[go]": {
+        "editor.formatOnSave": false
+    }
 }

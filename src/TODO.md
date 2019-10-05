@@ -2,8 +2,12 @@
 
 See and update README.md for public tasks.
 
+- [ ] Generate `Ref` node after every `Decl` node has been resolved.
+    - Rename it to `Symbol`
+    - It will reference the finally resolved node and the original decl.
 - [ ] Get rid of `Ref` node type?
     - It's a "marker" of where the decl was.
+    - NO: We'll need it to refer to the declaration, but still hold information about the place of use (like position).
 - [ ] Errors
     - [ ] Full error reporting.
         - [ ] Pass position.

@@ -2,17 +2,32 @@
 
 #include <co-lib.h>
 
+#define RI_CHECK CHECK
+#define RI_ASSERT ASSERT
+#define RI_ABORT FAIL
+
 typedef struct Ri Ri;
+typedef struct RiPos RiPos;
 typedef struct RiError RiError;
 typedef struct RiStream RiStream;
 typedef struct RiToken RiToken;
 typedef struct RiNode RiNode;
+typedef struct RiNodeMeta RiNodeMeta;
 typedef struct RiScope RiScope;
 
 typedef enum RiErrorKind RiErrorKind;
 typedef enum RiTokenKind RiTokenKind;
 typedef enum RiNodeKind RiNodeKind;
 typedef enum RiDeclState RiDeclState;
+typedef enum RiTypeCompleteness RiTypeCompleteness;
+
+//
+//
+//
+
+struct RiPos {
+    iptr row, col;
+};
 
 //
 //
@@ -22,13 +37,18 @@ enum RiErrorKind {
     RiError_None,
     RiError_UnexpectedCharacter,
     RiError_UnexpectedToken,
+    RiError_UnexpectedType,
     RiError_Declared,
     RiError_NotDeclared,
-    RiError_CyclicReference,
+    RiError_CyclicDeclaration,
+    RiError_CompletingType,
+    RiError_CyclicType,
+    RiError_Type,
 };
 
 struct RiError {
     RiErrorKind kind;
+    RiPos pos;
     CharArray message;
 };
 
@@ -123,6 +143,8 @@ enum RiTokenKind
 
 
 struct RiStream {
+    iptr line_index;
+    char* line;
     char* start;
     char* end;
     char* it;
@@ -130,6 +152,7 @@ struct RiStream {
 
 struct RiToken {
     RiTokenKind kind;
+    RiPos pos;
     char* start;
     char* end;
     union {
@@ -147,9 +170,19 @@ typedef Slice(RiNode*) RiNodeSlice;
 typedef ArrayWithSlice(RiNodeSlice) RiNodeArray;
 
 enum RiDeclState {
-    RiDeclState_Unresolved,
-    RiDeclState_Resolving,
-    RiDeclState_Resolved,
+    RiDecl_Unresolved,
+    RiDecl_Resolving,
+    RiDecl_Resolved,
+};
+
+//
+//
+//
+
+enum RiTypeCompleteness {
+    RiType_Incomplete,
+    RiType_Completing,
+    RiType_Completed,
 };
 
 //
@@ -177,17 +210,32 @@ enum RiNodeKind
 
     RiNode_Type_FIRST__,
         RiNode_Type_Func,
+        RiNode_Type_Struct,
+        RiNode_Type_Union,
+        RiNode_Type_Pointer,
         RiNode_Type_Number_FIRST__,
-            RiNode_Type_Number_Int64,
-            RiNode_Type_Number_UInt64,
-            RiNode_Type_Number_Int32,
-            RiNode_Type_Number_UInt32,
-            RiNode_Type_Number_Int16,
-            RiNode_Type_Number_UInt16,
-            RiNode_Type_Number_Int8,
-            RiNode_Type_Number_UInt8,
-            RiNode_Type_Number_Float64,
-            RiNode_Type_Number_Float32,
+            RiNode_Type_Number_Int_FIRST__,
+                RiNode_Type_Number_Int_Signed_FIRST__,
+                    RiNode_Type_Number_Int64,
+                    RiNode_Type_Number_Int32,
+                    RiNode_Type_Number_Int16,
+                    RiNode_Type_Number_Int8,
+                RiNode_Type_Number_Int_Signed_LAST__,
+
+                RiNode_Type_Number_Int_Unsigned_FIRST__,
+                    RiNode_Type_Number_UInt64,
+                    RiNode_Type_Number_UInt32,
+                    RiNode_Type_Number_UInt16,
+                    RiNode_Type_Number_UInt8,
+                RiNode_Type_Number_Int_Unsigned_LAST__,
+            RiNode_Type_Number_Int_LAST__,
+
+            RiNode_Type_Number_Real_FIRST__,
+                RiNode_Type_Number_Float64,
+                RiNode_Type_Number_Float32,
+            RiNode_Type_Number_Real_LAST__,
+
+            RiNode_Type_Number_Enum,
         RiNode_Type_Number_LAST__,
     RiNode_Type_LAST__,
 
@@ -196,6 +244,13 @@ enum RiNodeKind
         RiNode_Expr_Variable,
         RiNode_Expr_Call,
         RiNode_Expr_AddrOf,
+
+        RiNode_Expr_Literal_FIRST__,
+            RiNode_Expr_Literal_Integer,
+            RiNode_Expr_Literal_Real,
+            RiNode_Expr_Literal_String,
+        RiNode_Expr_Literal_LAST__,
+
 
         RiNode_Expr_Unary_FIRST__,
             // Arithmetic
@@ -229,6 +284,8 @@ enum RiNodeKind
             RiNode_Expr_Binary_Or,
             // Syntax
             RiNode_Expr_Binary_Select,
+            // Type
+            RiNode_Expr_Binary_Cast,
 
             RiNode_Expr_Binary_Comparison_FIRST__,
                 RiNode_Expr_Binary_Comparison_Lt,
@@ -257,20 +314,42 @@ enum RiNodeKind
     RiNode_St_Return,
     RiNode_St_If,
     RiNode_St_For,
+    RiNode_St_Break,
+    RiNode_St_Continue,
     RiNode_St_Switch,
     RiNode_St_Switch_Case,
+    RiNode_St_Switch_Default,
+    RiNode_St_Switch_Fallthrough,
 
     RiNode_COUNT__
 };
 
-#define ri_nodekind_in(NodeKind, Prefix) \
-    ((NodeKind) > Prefix ## _FIRST__ && (NodeKind) < Prefix ## _LAST__)
+static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
+    return (kind > first) && (kind < last);
+}
+
+#define ri_is_in(NodeKind, Prefix) \
+    ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
+
+#define ri_is_signed_int_type(NodeKind) \
+    ri_is_in(NodeKind, RiNode_Type_Number_Int_Signed)
+
+#define ri_is_int_type(NodeKind) \
+    ri_is_in(NodeKind, RiNode_Type_Number_Int)
+
+#define ri_is_number_type(NodeKind) \
+    ri_is_in(NodeKind, RiNode_Type_Number)
+
+static inline ri_is_pointer_type (RiNodeKind kind) {
+    return kind == RiNode_Type_Pointer;
+}
 
 struct RiNode
 {
     RiNodeKind kind;
     RiNode* owner;
     int index;
+    RiPos pos;
     union {
         struct {
             Map map;
@@ -299,6 +378,20 @@ struct RiNode
                 } type_func;
             };
         } decl;
+        struct {
+            RiTypeCompleteness completeness;
+            struct {
+                RiNodeArray inputs;
+                RiNodeArray outputs;
+            } func;
+            struct {
+                RiNodeArray fields;
+                iptr size;
+            } compound;
+            struct {
+                RiNode* base;
+            } pointer;
+        } type;
         struct {
             // NOTE: Reference to the original declaration.
             RiNode* decl;
@@ -359,6 +452,11 @@ struct RiNode
 //
 //
 
+struct RiNodeMeta {
+    // RiNode* identifier;
+    RiNode* node;
+};
+
 struct Ri {
     Arena arena;
     Intern intern;
@@ -388,6 +486,8 @@ struct Ri {
     const char* id_break;
     const char* id_continue;
     const char* id_fallthrough;
+
+    RiNodeMeta node_meta[RiNode_COUNT__];
 };
 
 //

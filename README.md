@@ -21,17 +21,23 @@ Project is not being made in isolation, it is made as a direct requirement of [R
 
 # Features
 
+Implementation:
+
 - Embeddable.
 - STB-style libaries.
 - Minimal binary size.
 - No cstdlib dependency.
 - No LLVM dependency.
 
+Language:
+
+- Simple Go-inspired syntax.
 - Type inference.
 - No built-in memory management.
 - Packages.
 - Most of what C does.
 - Bring your own library code.
+- Compile time execution.
 
 # Organization
 
@@ -92,11 +98,12 @@ The list will grow as I go.
         - `complex128`
     - [ ] SSE type(s)
     - [ ] Pointers
-    - [ ] Function pointers
+        - [ ] Function pointers
     - [ ] Struct
     - [ ] Union
     - [ ] Enum
     - [ ] Slices
+        - `[]type`
 - [ ] Comments
     - [x] Line comments
     - [ ] Block comments

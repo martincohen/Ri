@@ -6,6 +6,9 @@
     (decl-var 'x'
       (type int32)
     )
+    (decl-var 'f'
+      (type float32)
+    )
     (decl-var 'y'
       (type int32)
     )
@@ -14,6 +17,17 @@
     (ref 'x')
     (ref 'y')
     (ref 'a')
+    (ref 'f')
+    (st-assign
+      (var 'a')
+      (expr-add
+        (expr-cast
+          (type float32)
+          (var 'x')
+        )
+        (var 'f')
+      )
+    )
     (st-assign
       (var 'a')
       (expr-add
