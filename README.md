@@ -81,114 +81,115 @@ The work is split to phases:
 
 The list will grow as I go.
 
-- :white_square_button: Built-in types
-    - :white_square_button: `int8`
-    - :white_square_button: `uint8`
-    - :white_square_button: `int16`
-    - :white_square_button: `uint16`
-    - :white_square_button: `int32`
-    - :white_square_button: `uint32`
-    - :white_square_button: `int64`
-    - :white_square_button: `uint64`
-    - :white_square_button: `float32`
-    - :white_square_button: `float64`
-    - :black_square_button: Boolean type(s)
-    - :black_square_button: Complex type(s)
+- [x] Built-in types
+    - [x] `int8`
+    - [x] `uint8`
+    - [x] `int16`
+    - [x] `uint16`
+    - [x] `int32`
+    - [x] `uint32`
+    - [x] `int64`
+    - [x] `uint64`
+    - [x] `float32`
+    - [x] `float64`
+    - [ ] Boolean type(s)
+    - [ ] Complex type(s)
         - `complex64`
         - `complex128`
-    - :black_square_button: SSE type(s)
-    - :black_square_button: Pointers
-        - :black_square_button: Function pointers
-    - :black_square_button: Struct
-    - :black_square_button: Union
-    - :black_square_button: Enum
-    - :black_square_button: Slices
+    - [ ] SSE type(s)
+    - [ ] Pointers
+        - [ ] Function pointers
+    - [ ] Struct
+    - [ ] Union
+    - [ ] Enum
+    - [ ] Slices
         - `[]type`
-- :black_square_button: Comments
-    - :white_square_button: Line comments
-    - :black_square_button: Block comments
-- :white_square_button: Function declaration
-    - :white_square_button: `function <name> (<inputs>) (<outputs>) { ... }`
-- :white_square_button: Function prototype declaration
-    - :white_square_button: `function <name> (<inputs>) (<outputs>)`
-- :white_square_button: Call
-    - :white_square_button: `<name>(<arguments>)`
-    - :black_square_button: Type checking.
-- :white_square_button: If statement
-    - :white_square_button: `if <pre-st>; <condition> { ... }`
-    - :white_square_button: `if <condition> { ... }`
-    - :white_square_button: `if ... { ... } else { ... }`
-    - :white_square_button: `if ... { ... } else if ...`
-    - :black_square_button: Type checking.
-- :white_square_button: For statement
-    - :white_square_button: `for <pre-st>; <condition>; <post-st> { ... }`
-    - :white_square_button: `for <pre-st>; ; <post-st> { ... }`
-    - :white_square_button: `for <pre-st>; ; { ... }`
-    - :white_square_button: `for ; <condition>; { ... }`
-    - :white_square_button: `for ; ; { ... }`
-    - :white_square_button: `for <condition> { ... }`
-    - :black_square_button: Type checking.
-- :black_square_button: Arithmetic expressions
-    - :white_square_button: `-a`
-    - :white_square_button: `+a`
-    - :black_square_button: `--a` (L)
-    - :black_square_button: `++a` (L)
-    - :black_square_button: `a--` (L)
-    - :black_square_button: `a++` (L)
-    - :white_square_button: `a + b`
-    - :white_square_button: `a - b`
-    - :white_square_button: `a * b`
-    - :white_square_button: `a / b`
-    - :white_square_button: `a % b`
-    - :white_square_button: `a = b`
-    - :white_square_button: `a += b`
-    - :white_square_button: `a -= b`
-    - :white_square_button: `a *= b`
-    - :white_square_button: `a /= b`
-- :black_square_button: Bitwise expressions
-    - :white_square_button: `~n`
-    - :white_square_button: `a ^ b`
-    - :white_square_button: `a & b`
-    - :white_square_button: `a | b`
-    - :white_square_button: `a << b`
-    - :white_square_button: `a >> b`
-    - :white_square_button: `a &= b`
-    - :white_square_button: `a |= b`
-    - :white_square_button: `a ^= b`
-- :black_square_button: Comparison expressions
-    - :white_square_button: `a < b`
-    - :white_square_button: `a > b`
-    - :white_square_button: `a <= b`
-    - :white_square_button: `a >= b`
-    - :white_square_button: `a == b`
-    - :white_square_button: `a != b`
-- :black_square_button: Boolean expressions
-    - :white_square_button: `!n`
-    - :white_square_button: `a && b`
-    - :white_square_button: `a || b`
-- :black_square_button: ASTNode/Type checksing
+- [ ] Comments
+    - [x] Line comments
+    - [ ] Block comments
+- [x] Function declaration
+    - [x] `function <name> (<inputs>) (<outputs>) { ... }`
+- [x] Function prototype declaration
+    - [x] `function <name> (<inputs>) (<outputs>)`
+- [x] Call
+    - [x] `<name>(<arguments>)`
+    - [ ] Type checking.
+- [x] If statement
+    - [x] `if <pre-st>; <condition> { ... }`
+    - [x] `if <condition> { ... }`
+    - [x] `if ... { ... } else { ... }`
+    - [x] `if ... { ... } else if ...`
+    - [ ] Type checking.
+- [x] For statement
+    - [x] `for <pre-st>; <condition>; <post-st> { ... }`
+    - [x] `for <pre-st>; ; <post-st> { ... }`
+    - [x] `for <pre-st>; ; { ... }`
+    - [x] `for ; <condition>; { ... }`
+    - [x] `for ; ; { ... }`
+    - [x] `for <condition> { ... }`
+    - [ ] Type checking.
+- [ ] Arithmetic expressions
+    - [x] `-a`
+    - [x] `+a`
+    - [ ] `--a` (L, TBD)
+    - [ ] `++a` (L, TBD)
+    - [ ] `a--` (L, TBD)
+    - [ ] `a++` (L, TBD)
+    - [x] `a + b`
+    - [x] `a - b`
+    - [x] `a * b`
+    - [x] `a / b`
+    - [x] `a % b`
+    - [x] `a = b`
+    - [x] `a += b`
+    - [x] `a -= b`
+    - [x] `a *= b`
+    - [x] `a /= b`
+- [ ] Bitwise expressions
+    - [x] `~n`
+    - [x] `a ^ b`
+    - [x] `a & b`
+    - [x] `a | b`
+    - [x] `a << b`
+    - [x] `a >> b`
+    - [x] `a &= b`
+    - [x] `a |= b`
+    - [x] `a ^= b`
+- [ ] Comparison expressions
+    - [x] `a < b`
+    - [x] `a > b`
+    - [x] `a <= b`
+    - [x] `a >= b`
+    - [x] `a == b`
+    - [x] `a != b`
+- [ ] Boolean expressions
+    - [x] `!n`
+    - [x] `a && b`
+    - [x] `a || b`
+- [ ] ASTNode/Type checksing
 
 # To be determined
 
 Language details to be determined.
 
-- :black_square_button: Multiple function output arguments
+- [ ] Multiple function output arguments
     - In C implemented as non-const pointer parameters.
     - Really wanted only for error reporting.
         - Zero, one or two outputs only?
         - Single output with one additional implicit `error` output?
-- :white_square_button: Named function output argument(s)
+- [ ] Prefix and postfix `++` and `--` operators as statements?
+- [x] Named function output argument(s)
     - Will attempt.
-- :white_square_button: Strings
-    - :white_square_button: `[]char8`, `[]char16`, `[]char32` slices
-    - :white_square_button: No zero-termination guarantee.
-    - :white_square_button: No `string + string` bullshit.
-    - :black_square_button: How to deal with zero-terminated strings for C APIs compatibility?
-- :black_square_button: Boolean types
+- [x] Strings
+    - [x] `[]char8`, `[]char16`, `[]char32` slices
+    - [x] No zero-termination guarantee.
+    - [x] No `string + string` bullshit.
+    - [ ] How to deal with zero-terminated strings for C APIs compatibility?
+- [ ] Boolean types
     - 32-bit bool, or 1-bit bool?
     - Other options?
-- :black_square_button: _Go_ interfaces
-- :black_square_button: Code in root?
+- [ ] _Go_ interfaces
+- [ ] Code in root?
     - Module is function?
     - Module has root code as `main` function?
     - Pros:
@@ -196,4 +197,4 @@ Language details to be determined.
         - Good for module initialization.
     - Cons:
         - Incompatible with C's `#include` (initialization has to be called manually)
-- :black_square_button: Context as silent argument?
+- [ ] Context as silent argument?
