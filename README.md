@@ -145,6 +145,7 @@ The list will grow as I go.
     - [x] `a -= b`
     - [x] `a *= b`
     - [x] `a /= b`
+    - [ ] Type checking.
 - [ ] Bitwise expressions
     - [x] `~n`
     - [x] `a ^ b`
@@ -155,6 +156,7 @@ The list will grow as I go.
     - [x] `a &= b`
     - [x] `a |= b`
     - [x] `a ^= b`
+    - [ ] Type checking.
 - [ ] Comparison expressions
     - [x] `a < b`
     - [x] `a > b`
@@ -162,11 +164,14 @@ The list will grow as I go.
     - [x] `a >= b`
     - [x] `a == b`
     - [x] `a != b`
+    - [ ] Type checking.
 - [ ] Boolean expressions
     - [x] `!n`
     - [x] `a && b`
     - [x] `a || b`
-- [ ] Type checking, coercion and promotion for expressions.
+    - [ ] Type checking.
+- [-] Type checking, coercion and promotion for expressions.
+    - Implemented only partially, decided to go without implicit type conversion and only have explicit.
 
 # To be determined
 

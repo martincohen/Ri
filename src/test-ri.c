@@ -69,31 +69,70 @@ testri_file_(const char* name)
     Ri ri;
     ri_init(&ri);
 
-    CharArray path = {0};
-    chararray_push_f(&path, __FILE__ "/../test/%s.ri", name);
-    array_zero_term(&path);
+    RiNode* node = NULL;
+    {
+        CharArray path_source = {0};
+        chararray_push_f(&path_source, __FILE__ "/../test/%s.ri", name);
+        array_zero_term(&path_source);
+            ByteArray source = {0};
+            ASSERT(file_read(&source, path_source.items, 0));
+            node = ri_parse(&ri, S((char*)source.items, source.count));
+            array_purge(&source);
+        array_purge(&path_source);
+    }
 
-    ByteArray buffer = {0};
-    ASSERT(file_read(&buffer, path.items, 0));
+    ByteArray expected = {0};
+    {
+        CharArray path_expected = {0};
+        chararray_push_f(&path_expected, __FILE__ "/../test/%s.expected.lisp", name);
+        array_zero_term(&path_expected);
+        if (!file_read(&expected, path_expected.items, 0)) {
+            LOG("'%s': expected file not found", name);
+        }
+        array_purge(&path_expected);
+    }
 
-    RiNode* node = ri_parse(&ri, S((char*)buffer.items, buffer.count));
+    if (node != NULL) {
+        node = ri_resolve(&ri, node);
+    }
 
-    // ri_log(&ri, node);
-    node = ri_resolve(&ri, node);
-    ri_log(&ri, node);
+    {
+        CharArray actual = {0};
 
+        if (node != NULL) {
+            ri_dump(&ri, node, &actual);
+        } else {
+            chararray_push_f(&actual,
+                "(error\n"
+                "  \"%s.ri\" %d %d\n"
+                "  \"%S\"\n"
+                ")\n",
+                name,
+                ri.error.pos.row + 1,
+                ri.error.pos.col + 1,
+                ri.error.message.slice
+            );
+        }
 
-    array_clear(&buffer);
-    array_clear(&path);
-    chararray_push_f(&path, __FILE__ "/../test/%s.recent.lisp", name);
-    array_zero_term(&path);
+        if (expected.items != NULL) {
+            if (!string_is_equal(S(expected.items, expected.count), actual.slice)) {
+                LOG("'%s': expected does not match actual", name);
+                LOG("expected:\n%S", expected.slice);
+                LOG("actual:\n%S", actual.slice);
+                LOG("---");
+            }
+        }
 
-    ri_dump(&ri, node, (CharArray*)&buffer);
-    ASSERT(file_write(path.items, buffer.items, buffer.count, 0));
+        CharArray path_recent = {0};
+        chararray_push_f(&path_recent, __FILE__ "/../test/%s.recent.lisp", name);
+        array_zero_term(&path_recent);
+        ASSERT(file_write(path_recent.items, actual.items, actual.count, 0));
+        array_purge(&path_recent);
 
-    array_purge(&buffer);
-    array_purge(&path);
+        array_purge(&actual);
+    }
 
+    array_purge(&expected);
     ri_purge(&ri);
 }
 
@@ -102,10 +141,12 @@ testri_resolve() {
     // testri_file_("test1");
     // testri_file_("if1");
     // testri_file_("for1");
-    testri_file_("op-arithmetic1");
+    // testri_file_("op-arithmetic1");
     // testri_file_("op-binary1");
     // testri_file_("op-boolean1");
     // testri_file_("op-comparison1");
+
+    testri_file_("op-call-type-arguments-count-error");
 }
 
 void

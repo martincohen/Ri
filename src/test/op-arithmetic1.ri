@@ -3,7 +3,7 @@ var y int32;
 var a int32;
 var f float32;
 
-a = x + f;
+a = x + int32(f);
 a = x + y;
 a = x - y;
 a = x * y;

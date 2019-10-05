@@ -1,7 +1,23 @@
 # To do (messy)
 
-See and update README.md for public tasks.
+See an updated README.md for more high-level tasks.
 
+- [ ] Explicit casting `int32(expr)`
+    - Parsed as call, resolved as a `(expr-cast type expr)`
+- [ ] Actual type checking done for expressions:
+    - 'Is L a variable with numeric type?'
+    - 'Is R a variable with numeric type?'
+    - 'Do types of L and R match?'
+- [ ] Type checking
+    - [ ] Binary
+    - [ ] Unary
+        - Must be numeric
+    - [ ] Type call
+        [ ] Args
+        [ ] Number of arguments
+    - [ ] Expression call
+        [ ] Args
+        [ ] Number of arguments
 - [ ] Generate `Ref` node after every `Decl` node has been resolved.
     - Rename it to `Symbol`
     - It will reference the finally resolved node and the original decl.

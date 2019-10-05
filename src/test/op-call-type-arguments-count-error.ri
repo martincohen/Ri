@@ -1,0 +1,3 @@
+var a float32;
+var b float32;
+var c int32 = int32(a, b);

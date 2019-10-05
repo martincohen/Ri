@@ -46,6 +46,7 @@ enum RiErrorKind {
     RiError_CompletingType,
     RiError_CyclicType,
     RiError_Type,
+    RiError_Argument,
 };
 
 struct RiError {
@@ -500,5 +501,5 @@ struct Ri {
 void ri_init(Ri* ri);
 void ri_purge(Ri* ri);
 void ri_log(Ri* ri, RiNode* node);
-RiNode* ri_resolve(Ri* ri, RiNode* node);
 RiNode* ri_parse(Ri* ri, String stream);
+RiNode* ri_resolve(Ri* ri, RiNode* node);

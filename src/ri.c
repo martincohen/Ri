@@ -94,11 +94,14 @@ ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
     RI_CHECK(ri->error.kind == RiError_None);
     RI_CHECK(kind != RiError_None);
     ri->error.kind = kind;
+    ri->error.pos = pos;
+
     va_list args;
     va_start(args, format);
     chararray_push_fv(&ri->error.message, format, args);
     va_end(args);
 
+    // TODO: Use current file's name/path.
     RI_LOG("error source.ri:%d:%d: %S", pos.row + 1, pos.col + 1, ri->error.message.slice);
     __debugbreak();
 }
@@ -386,7 +389,7 @@ next:
     token->end = it;
     stream->it = it;
 
-    RI_LOG_DEBUG("'%.*s'", token->end - token->start, token->start);
+    // RI_LOG_DEBUG("'%.*s'", token->end - token->start, token->start);
 
     return true;
 }
@@ -1917,6 +1920,31 @@ static RI_RESOLVE_F_(ri_resolve_assign_)
     return true;
 }
 
+static RI_RESOLVE_F_(ri_resolve_call_func_)
+{
+    RiNode* n = *node;
+    RiNode* func = n->expr_call.func;
+    // TODO: Check number of arguments.
+    // TOOD: Check if the argument types match.
+    if (!ri_resolve_slice_with_(ri, n->expr_call.arguments.slice, &ri_resolve_node_)) {
+        return false;
+    }
+    return true;
+}
+
+static RI_RESOLVE_F_(ri_resolve_call_type_)
+{
+    RiNode* n = *node;
+    if (n->expr_call.arguments.count != 1) {
+        ri_error_set_(ri, RiError_Argument, n->pos, "1 argument expected");
+        return false;
+    }
+    if (!ri_resolve_slice_with_(ri, n->expr_call.arguments.slice, &ri_resolve_node_)) {
+        return false;
+    }
+    return true;
+}
+
 static RI_RESOLVE_F_(ri_resolve_node_)
 {
     RiNode* n = *node;
@@ -1956,8 +1984,15 @@ static RI_RESOLVE_F_(ri_resolve_node_)
                 if (!ri_resolve_node_(ri, &n->expr_call.func)) {
                     return false;
                 }
-                if (!ri_resolve_slice_with_(ri, n->expr_call.arguments.slice, &ri_resolve_node_)) {
-                    return false;
+                RiNode* callable = n->expr_call.func;
+                if (callable->kind == RiNode_Func) {
+                    if (!ri_resolve_call_func_(ri, &n)) {
+                        return false;
+                    }
+                } else if (ri_is_in(callable->kind, RiNode_Type)) {
+                    if (!ri_resolve_call_type_(ri, &n)) {
+                        return false;
+                    }
                 }
             } break;
 
