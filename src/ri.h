@@ -5,6 +5,8 @@
 #define RI_CHECK CHECK
 #define RI_ASSERT ASSERT
 #define RI_ABORT FAIL
+#define RI_LOG LOG
+#define RI_LOG_DEBUG LOG_DEBUG
 
 typedef struct Ri Ri;
 typedef struct RiPos RiPos;

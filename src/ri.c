@@ -91,7 +91,6 @@ ri_push_slice__(Ri* ri, void* ptr, iptr count, iptr item_size) {
 static inline void
 ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
 {
-    __debugbreak();
     RI_CHECK(ri->error.kind == RiError_None);
     RI_CHECK(kind != RiError_None);
     ri->error.kind = kind;
@@ -100,7 +99,8 @@ ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
     chararray_push_fv(&ri->error.message, format, args);
     va_end(args);
 
-    LOG("error at %d %d: %S", pos.row, pos.col, ri->error.message.slice);
+    RI_LOG("error source.ri:%d:%d: %S", pos.row + 1, pos.col + 1, ri->error.message.slice);
+    __debugbreak();
 }
 
 static inline void
@@ -386,7 +386,7 @@ next:
     token->end = it;
     stream->it = it;
 
-    LOG_INFO("'%.*s'", token->end - token->start, token->start);
+    RI_LOG_DEBUG("'%.*s'", token->end - token->start, token->start);
 
     return true;
 }
@@ -1271,7 +1271,7 @@ ri_parse_decl_partial_func_(Ri* ri, RiPos pos, String id)
     // created within have owner set to the scope.
     RiNode* scope = ri_make_scope_(ri, pos);
     ri->scope = scope;
-    LOG_INFO("function '%S' scope %d", id, scope->index);
+    RI_LOG_DEBUG("function '%S' scope %d", id, scope->index);
 
     RiNode* type = ri_parse_decl_partial_func_type_(ri, pos);
     if (!type) {
@@ -1763,7 +1763,7 @@ static RI_RESOLVE_F_(ri_resolve_decl_from_identifier_)
 
     RI_CHECK(id->kind == RiNode_Expr_Identifier);
 
-    LOG_INFO("%S", id->expr_id);
+    RI_LOG_DEBUG("%S", id->expr_id);
 
     RiNode* decl = NULL;
     RiNode* scope = id->owner;
@@ -1833,122 +1833,6 @@ static RI_RESOLVE_F_(ri_resolve_decl_from_identifier_)
     return true;
 }
 
-static inline int
-ri_get_integer_type_rank_(RiNode* node)
-{
-    switch (node->kind)
-    {
-        case RiNode_Type_Number_Int64:
-        case RiNode_Type_Number_UInt64:
-            return 4;
-        case RiNode_Type_Number_Int32:
-        case RiNode_Type_Number_UInt32:
-            return 3;
-        case RiNode_Type_Number_Int16:
-        case RiNode_Type_Number_UInt16:
-            return 2;
-        case RiNode_Type_Number_Int8:
-        case RiNode_Type_Number_UInt8:
-            return 1;
-    }
-    RI_ABORT("invalid type");
-    return 0;
-}
-
-static inline RiNode*
-ri_promote_integer_type_(Ri* ri, RiNode* type)
-{
-    switch (type->kind)
-    {
-        case RiNode_Type_Number_Int8:
-        case RiNode_Type_Number_UInt8:
-        case RiNode_Type_Number_Int16:
-        case RiNode_Type_Number_UInt16:
-        case RiNode_Type_Number_Enum:
-            return ri->node_meta[RiNode_Type_Number_Int32].node;
-    }
-    return type;
-}
-
-static inline RiNode*
-ri_get_unsigned_integer_type_(Ri* ri, RiNode* type)
-{
-    switch (type->kind) {
-        case RiNode_Type_Number_Int8:
-        case RiNode_Type_Number_UInt8:
-            return ri->node_meta[RiNode_Type_Number_UInt8].node;
-        case RiNode_Type_Number_Int16:
-        case RiNode_Type_Number_UInt16:
-            return ri->node_meta[RiNode_Type_Number_UInt16].node;
-        case RiNode_Type_Number_Int32:
-        case RiNode_Type_Number_UInt32:
-            return ri->node_meta[RiNode_Type_Number_UInt32].node;
-        case RiNode_Type_Number_Int64:
-        case RiNode_Type_Number_UInt64:
-            return ri->node_meta[RiNode_Type_Number_UInt64].node;
-    }
-    RI_ABORT("invalid type");
-    return NULL;
-}
-
-static bool
-ri_cast_unify_arithmetic_arguments_(Ri* ri, RiNode** left_type, RiNode** right_type)
-{
-    RiNode* L = *left_type;
-    RiNode* R = *right_type;
-    RI_CHECK(ri_is_in(L->kind, RiNode_Type_Number));
-    RI_CHECK(ri_is_in(R->kind, RiNode_Type_Number));
-
-    RiNode* node_Float64 = ri->node_meta[RiNode_Type_Number_Float64].node;
-    RiNode* node_Float32 = ri->node_meta[RiNode_Type_Number_Float32].node;
-
-    if (L == node_Float64) {
-        R = node_Float64;
-    } else if (R == node_Float64) {
-        L =  node_Float64;
-    } else if (L == node_Float32) {
-        R = node_Float32;
-    } else if (R == node_Float32) {
-        L = node_Float32;
-    } else {
-        RI_CHECK(ri_is_in(L->kind, RiNode_Type_Number_Int));
-        RI_CHECK(ri_is_in(R->kind, RiNode_Type_Number_Int));
-
-        L = ri_promote_integer_type_(ri, L);
-        R = ri_promote_integer_type_(ri, R);
-
-        if (L != R) {
-            if (ri_is_signed_int_type(L->kind) == ri_is_signed_int_type(R->kind)) {
-                if (ri_get_integer_type_rank_(L) <= ri_get_integer_type_rank_(R)) {
-                    L = R;
-                } else {
-                    R = L;
-                }
-            } else if (ri_is_signed_int_type(L->kind) && ri_get_integer_type_rank_(R) >= ri_get_integer_type_rank_(L)) {
-                L = R;
-            } else if (ri_is_signed_int_type(R->kind) && ri_get_integer_type_rank_(L) >= ri_get_integer_type_rank_(R)) {
-                R = L;
-            // } else if (is_signed_type(L) && type_sizeof(L) > type_sizeof(R)) {
-            //     right = ri_make_expr_cast_(ri, right, L);
-            // } else if (is_signed_type(R) && type_sizeof(R) > type_sizeof(L)) {
-            //     left = ri_make_expr_cast_(ri, left, R);
-            } else {
-                RiNode* type = ri_get_unsigned_integer_type_(ri,
-                    ri_is_signed_int_type(L->kind) ? L : R);
-                L = type;
-                R = type;
-            }
-        }
-    }
-
-    RI_CHECK(L == R);
-
-    *left_type = L;
-    *right_type = R;
-
-    return true;
-}
-
 static RI_RESOLVE_F_(ri_resolve_unary_)
 {
     RiNode* n = *node;
@@ -1990,218 +1874,43 @@ static RI_RESOLVE_F_(ri_resolve_binary_)
         return false;
     }
 
-    RiNode* argument0 = n->binary.argument0;
-    RiNode* argument1 = n->binary.argument1;
+    RiNode* a0  = n->binary.argument0;
+    RiNode* a1 = n->binary.argument1;
+    RiNode* a0_type  = ri_retof_(ri, a0);
+    RI_CHECK(a0_type);
+    RiNode* a1_type = ri_retof_(ri, a1);
+    RI_CHECK(a1_type);
 
-    RiPos left_pos = argument0->pos;
-    RiPos right_pos = argument1->pos;
-    RiNode* ret_type = 0;
-    RiNode* left_type = ri_retof_(ri, argument0);
-    RiNode* right_type = ri_retof_(ri, argument1);
-
-    RiNode* node_int = ri->node_meta[RiNode_Type_Number_Int32].node;
-    RiNode* node_iptr = ri->node_meta[RiNode_Type_Number_Int64].node;
-
-    switch (n->kind)
-    {
-        case RiNode_Expr_Binary_Mul:
-        case RiNode_Expr_Binary_Div:
-            if (!ri_is_number_type(left_type->kind)) {
-                ri_error_set_(ri, RiError_Type, left_pos, "arithmetic type expected");
-                return 0;
-            }
-            if (!ri_is_number_type(right_type->kind)) {
-                ri_error_set_(ri, RiError_Type, right_pos, "arithmetic type expected");
-                return 0;
-            }
-            if (ri_cast_unify_arithmetic_arguments_(ri, &left_type, &right_type) == 0) {
-                return 0;
-            }
-            ret_type = left_type;
-            break;
-
-        case RiNode_Expr_Binary_Mod:
-            if (!ri_is_int_type(left_type->kind)) {
-                ri_error_set_(ri, RiError_Type, left_pos, "integer type expected");
-                return 0;
-            }
-            if (!ri_is_int_type(right_type->kind)) {
-                ri_error_set_(ri, RiError_Type, right_pos, "integer type expected");
-                return 0;
-            }
-            if (ri_cast_unify_arithmetic_arguments_(ri, &left_type, &right_type) == 0) {
-                return 0;
-            }
-            ret_type = left_type;
-            break;
-
-        case RiNode_Expr_Binary_Add:
-            if (ri_is_number_type(left_type->kind) && ri_is_number_type(right_type->kind)) {
-                if (ri_cast_unify_arithmetic_arguments_(ri, &left_type, &right_type) == 0) {
-                    return 0;
-                }
-                ret_type = left_type;
-            } else if (ri_is_pointer_type(left_type->kind) && ri_is_int_type(right_type->kind)) {
-                left_type = ri_complete_type_(ri, left_pos, left_type->type.pointer.base);
-                if (!left_type) {
-                    return 0;
-                }
-                if (ri_sizeof_(ri, left_pos, left_type->type.pointer.base) == 0) {
-                    ri_error_set_(ri, RiError_Type, left_pos, "zero size pointer");
-                    return 0;
-                }
-                ret_type = left_type;
-            } else if (ri_is_pointer_type(right_type->kind) && ri_is_int_type(left_type->kind)) {
-                right_type = ri_complete_type_(ri, right_pos, right_type->type.pointer.base);
-                if (!right_type) {
-                    return 0;
-                }
-                if (ri_sizeof_(ri, right_pos, right_type->type.pointer.base) == 0) {
-                    ri_error_set_(ri, RiError_Type, right_pos, "zero size pointer");
-                    return 0;
-                }
-                ret_type = right_type;
-            } else {
-                if (!ri_is_number_type(left_type->kind)) {
-                    ri_error_set_(ri, RiError_Type, left_pos, "arithmetic type expected");
-                    return 0;
-                }
-                if (!ri_is_number_type(right_type->kind)) {
-                    ri_error_set_(ri, RiError_Type, right_pos, "arithmetic type expected");
-                    return 0;
-                }
-                RI_ABORT("unexpected state");
-                return 0;
-            }
-            break;
-
-        case RiNode_Expr_Binary_Sub:
-            if (ri_is_number_type(left_type->kind) && ri_is_number_type(right_type->kind)) {
-                if (ri_cast_unify_arithmetic_arguments_(ri, &left_type, &right_type) == 0) {
-                    return 0;
-                }
-                ret_type = left_type;
-            } else if (ri_is_pointer_type(left_type->kind) && ri_is_int_type(right_type->kind)) {
-                left_type = ri_complete_type_(ri, left_pos, left_type->type.pointer.base);
-                if (!left_type) {
-                    return 0;
-                }
-                if (ri_sizeof_(ri, left_pos, left_type->type.pointer.base) == 0) {
-                    ri_error_set_(ri, RiError_Type, left_pos, "zero size pointer");
-                    return 0;
-                }
-                ret_type = left_type;
-            } else if (ri_is_pointer_type(left_type->kind) && ri_is_pointer_type(right_type->kind)) {
-                // Distance between pointers.
-                if (left_type->type.pointer.base != right_type->type.pointer.base) {
-                    ri_error_set_(ri, RiError_Type, right_pos, "pointers of different base");
-                    return 0;
-                }
-                ret_type = node_iptr;
-            } else {
-                ri_error_set_(ri, RiError_Type, left_pos, "expected arithmetic types");
-                return 0;
-            }
-            break;
-
-        case RiNode_Expr_Binary_BAnd:
-        case RiNode_Expr_Binary_BXor:
-        case RiNode_Expr_Binary_BOr:
-            if (ri_is_int_type(left_type->kind) && ri_is_int_type(right_type->kind)) {
-                if (!ri_cast_unify_arithmetic_arguments_(ri, &left_type, &right_type)) {
-                    return 0;
-                }
-                ret_type = left_type;
-            } else {
-                ri_error_set_(ri, RiError_Type, left_pos, "expected arithmetic types");
-                return 0;
-            }
-            break;
-
-        //
-        // Comparisons.
-        //
-
-        case RiNode_Expr_Binary_Comparison_Eq:
-            if (ri_is_number_type(left_type->kind) && ri_is_number_type(right_type->kind)) {
-                if (!ri_cast_unify_arithmetic_arguments_(ri, &left_type, &right_type)) {
-                    return 0;
-                }
-                // TODO: int?
-                ret_type = node_int;
-            } else if (ri_is_pointer_type(left_type->kind) && ri_is_pointer_type(right_type->kind)) {
-                RI_TODO;
-                // Type *unqual_left_base = unqualify_type(left_type->base);
-                // Type *unqual_right_base = unqualify_type(right_type->base);
-                // if (unqual_left_base != unqual_right_base && unqual_left_base != type_void && unqual_right_base != type_void) {
-                //     fatal_error(pos, "Cannot compare pointers to different types");
-                // }
-                // return operand_rvalue(type_int);
-            // } else if ((is_null_ptr(left) && ri_is_pointer_type(right_type->kind)) || (is_null_ptr(right) && ri_is_pointer_type(left_type->kind))) {
-            //     RI_TODO;
-                // return operand_rvalue(type_int);
-            } else {
-                // TODO: better error?
-                ri_error_set_(ri, RiError_Type, left_pos, "expected be arithmetic types or compatible pointer types");
-                return 0;
-            }
-            break;
-
-        case RiNode_Expr_Binary_And:
-        case RiNode_Expr_Binary_Or:
-            if (ri_is_number_type(left_type->kind) && ri_is_number_type(right_type->kind)) {
-                RI_TODO;
-#if 0
-                if (left.is_const && right.is_const) {
-                    cast_operand(&left, type_bool);
-                    cast_operand(&right, type_bool);
-                    int i;
-                    if (op == TOKEN_AND_AND) {
-                        i = left.val.b && right.val.b;
-                    } else {
-                        assert(op == TOKEN_OR_OR);
-                        i = left.val.b || right.val.b;
-                    }
-                    return operand_const(type_int, (Val){.i = i});
-                } else {
-                    return operand_rvalue(type_int);
-                }
-#endif
-                ret_type = node_int;
-            } else {
-                ri_error_set_(ri, RiError_Type, left_pos, "expected scalar types");
-                return 0;
-            }
-            break;
-
-        default:
-            RI_TODO;
-            break;
+    if (a0_type != a1_type) {
+        // TODO: Print left and right type.
+        ri_error_set_(ri, RiError_Type, n->pos, "mismatched types");
+        return false;
     }
-
-
-    n->binary.argument0 = ri_make_expr_cast_(ri, argument0->pos, argument0, left_type);
-    n->binary.argument1 = ri_make_expr_cast_(ri, argument1->pos, argument1, right_type);
-
-    RI_ASSERT(ret_type);
-
-    *node = n;
 
     return true;
 }
 
 static RI_RESOLVE_F_(ri_resolve_assign_)
 {
-    // TODO: Can we assign argument1 to argument0?
-    // - argument
-
     RiNode* n = *node;
 
     if (!ri_resolve_node_(ri, &n->binary.argument0)) {
         return false;
     }
-
     if (!ri_resolve_node_(ri, &n->binary.argument1)) {
+        return false;
+    }
+
+    RiNode* a0  = n->binary.argument0;
+    RiNode* a1 = n->binary.argument1;
+    RiNode* a0_type  = ri_retof_(ri, a0);
+    RI_CHECK(a0_type);
+    RiNode* a1_type = ri_retof_(ri, a1);
+    RI_CHECK(a1_type);
+
+    if (a0_type != a1_type) {
+        // TODO: Print left and right type.
+        ri_error_set_(ri, RiError_Type, n->pos, "mismatched types");
         return false;
     }
 
@@ -2581,7 +2290,7 @@ ri_log(Ri* ri, RiNode* node)
 {
     CharArray buffer = {0};
     ri_dump(ri, node, &buffer);
-    LOG("%S", buffer.slice);
+    RI_LOG("%S", buffer.slice);
     array_purge(&buffer);
 }
 
@@ -2592,7 +2301,7 @@ ri_log(Ri* ri, RiNode* node)
 void
 ri_init(Ri* ri)
 {
-    LOG_INFO("node %d bytes", sizeof(RiNode));
+    RI_LOG_DEBUG("node %d bytes", sizeof(RiNode));
 
     memset(ri, 0, sizeof(Ri));
     arena_init(&ri->arena, MEGABYTES(1));
@@ -2645,8 +2354,8 @@ ri_init(Ri* ri)
 void
 ri_purge(Ri* ri)
 {
-    LOG_INFO("memory %d bytes", ri->arena.head);
-    LOG_INFO("nodes %d", ri->index);
+    RI_LOG_DEBUG("memory %d bytes", ri->arena.head);
+    RI_LOG_DEBUG("nodes %d", ri->index);
     arena_purge(&ri->arena);
     intern_purge(&ri->intern);
 }
