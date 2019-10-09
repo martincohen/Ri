@@ -1,0 +1,4 @@
+var a int32;
+if a {
+
+}

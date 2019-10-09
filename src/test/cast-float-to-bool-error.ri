@@ -1,0 +1,4 @@
+var f32 float32;
+var b bool;
+
+b = bool(f32);

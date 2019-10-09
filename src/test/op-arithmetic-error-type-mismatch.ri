@@ -1,0 +1,4 @@
+var i32 int32;
+var f32 float32;
+
+i32 = i32 + f32;

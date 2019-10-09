@@ -1,7 +1,0 @@
-var x int32;
-var y int32;
-var a int32;
-
-a = x && y;
-a = x || y;
-a = !x;

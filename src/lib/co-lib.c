@@ -1704,7 +1704,7 @@ file_write(const char *path, const void *blob, iptr size, Error* error)
     // TODO: Fill error.
 #ifdef SYSTEM_WINDOWS
     int ret = 1;
-    HANDLE file = CreateFileA(path, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE file = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) {
         error_set(error, ERROR_ID(File_Open), 0);
         ret = 0;

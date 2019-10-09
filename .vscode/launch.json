@@ -6,7 +6,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceRoot}/build/main.exe",
-            "cwd": "${workspaceRoot}/build",
+            "cwd": "${workspaceRoot}/",
             "stopAtEntry": false,
             "environment": [],
             "externalConsole": true,

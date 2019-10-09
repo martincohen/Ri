@@ -1,0 +1,13 @@
+var a int32;
+a;
+
+func test(a int32) (r int32) {
+	return a;
+};
+
+test(a);
+
+// var s1 struct { x, y float32; };
+// var s2 struct { x, y float32; };
+// ct_assert(typeof(s1) == typeof(struct { x, y float32; }));
+// ct_assert(typeof(s1) == typeof(s2));

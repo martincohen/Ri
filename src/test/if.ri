@@ -1,0 +1,24 @@
+var a int32;
+var b int32;
+
+if var x int32; a == b {
+	x = a;
+}
+
+if a {
+	b = a;
+}
+
+if a {
+	b = a;
+} else {
+	b = a;
+}
+
+if a {
+	b = a;
+} else if a {
+	b = a;
+} else {
+	b = a;
+}

@@ -57,7 +57,7 @@ testri_parse() {
     RiNode* node = ri_parse(&ri, S(
         "func main(var a int32);"
         "main;"
-    ));
+    ), S("testri_parse.ri"));
     ri_log(&ri, node);
 
     ri_purge(&ri);
@@ -66,17 +66,19 @@ testri_parse() {
 void
 testri_file_(const char* name)
 {
+    LOG("'%s': testing", name);
+
     Ri ri;
     ri_init(&ri);
 
     RiNode* node = NULL;
     {
         CharArray path_source = {0};
-        chararray_push_f(&path_source, __FILE__ "/../test/%s.ri", name);
+        chararray_push_f(&path_source, "./src/test/%s.ri", name);
         array_zero_term(&path_source);
             ByteArray source = {0};
             ASSERT(file_read(&source, path_source.items, 0));
-            node = ri_parse(&ri, S((char*)source.items, source.count));
+            node = ri_parse(&ri, S((char*)source.items, source.count), path_source.slice);
             array_purge(&source);
         array_purge(&path_source);
     }
@@ -84,7 +86,7 @@ testri_file_(const char* name)
     ByteArray expected = {0};
     {
         CharArray path_expected = {0};
-        chararray_push_f(&path_expected, __FILE__ "/../test/%s.expected.lisp", name);
+        chararray_push_f(&path_expected, "./src/test/%s.expected.lisp", name);
         array_zero_term(&path_expected);
         if (!file_read(&expected, path_expected.items, 0)) {
             LOG("'%s': expected file not found", name);
@@ -124,7 +126,7 @@ testri_file_(const char* name)
         }
 
         CharArray path_recent = {0};
-        chararray_push_f(&path_recent, __FILE__ "/../test/%s.recent.lisp", name);
+        chararray_push_f(&path_recent, "./src/test/%s.recent.lisp", name);
         array_zero_term(&path_recent);
         ASSERT(file_write(path_recent.items, actual.items, actual.count, 0));
         array_purge(&path_recent);
@@ -139,14 +141,26 @@ testri_file_(const char* name)
 void
 testri_resolve() {
     // testri_file_("test1");
-    // testri_file_("if1");
-    // testri_file_("for1");
-    // testri_file_("op-arithmetic1");
-    // testri_file_("op-binary1");
-    // testri_file_("op-boolean1");
+
+    // testri_file_("decl");
+    // testri_file_("if");
+    // testri_file_("if-condition-error-bool");
+    // testri_file_("for");
+    // testri_file_("for-condition-error-is-st");
+
+    testri_file_("op-arithmetic");
+    testri_file_("op-arithmetic-error-type-mismatch");
+    testri_file_("op-bitwise");
+    testri_file_("op-boolean");
+    testri_file_("op-comparison");
+
+    testri_file_("cast-bool");
+    testri_file_("cast-int-to-bool-error");
+    testri_file_("cast-float-to-bool-error");
+
     // testri_file_("op-comparison1");
 
-    testri_file_("op-call-type-arguments-count-error");
+    // testri_file_("op-call-type-arguments-count-error");
 }
 
 void

@@ -1,0 +1,4 @@
+var i32 int32;
+var b bool;
+
+b = bool(i32);

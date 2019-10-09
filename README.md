@@ -177,7 +177,8 @@ Language details to be determined.
     - Really wanted only for error reporting.
         - Zero, one or two outputs only?
         - Single output with one additional implicit `error` output?
-- [ ] Prefix and postfix `++` and `--` operators as statements?
+- [ ] Prefix and postfix `++` and `--` operators as statements or expressions?
+    - These are technically `x += 1`, so assignment which is a statement.
 - [x] Named function output argument(s)
     - Will attempt.
 - [x] Strings
@@ -185,9 +186,14 @@ Language details to be determined.
     - [x] No zero-termination guarantee.
     - [x] No `string + string` bullshit.
     - [ ] How to deal with zero-terminated strings for C APIs compatibility?
-- [ ] Boolean types
-    - 32-bit bool, or 1-bit bool?
-    - Other options?
+- [x] Boolean types
+    - For now, we're going with what Go does: We're going with 8-bit bool, in order to protect type safety and support explicit casting.
+        - `int` cannot be cast to `bool`, you need to do `i != 0`
+        - `bool` cannot be cast to `int`, you need to do `if b { i == 1 }`
+        - `bool` is not supported by arithmetic operations.
+        - Some of these might change though after proper testing.
+            - The cast from bool to int is quite safe.
+            - Problem is that some arithmetic operations with bool make sense in order to do branchless calculations.
 - [ ] _Go_ interfaces
 - [ ] Code in root?
     - Module is function?

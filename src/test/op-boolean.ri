@@ -1,0 +1,7 @@
+var x bool;
+var y bool;
+var a bool;
+
+a = x && y;
+a = x || y;
+a = !x;
