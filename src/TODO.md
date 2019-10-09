@@ -42,6 +42,7 @@ See README.md for high-level tasks.
 - [ ] `bool` is 8 bit
 - [ ] Implement decl+assigment `var a int32 = b;`
 
+- [ ] `switch..case` statement
 - [ ] Warnings
 - [ ] Packages
 - [ ] Get rid of need for semicolon after `{...}` in function parser.

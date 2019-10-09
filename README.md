@@ -92,7 +92,7 @@ The list will grow as I go.
     - [x] `uint64`
     - [x] `float32`
     - [x] `float64`
-    - [ ] Boolean type(s)
+    - [x] `bool`
     - [ ] Complex type(s)
         - `complex64`
         - `complex128`
@@ -119,7 +119,7 @@ The list will grow as I go.
     - [x] `if <condition> { ... }`
     - [x] `if ... { ... } else { ... }`
     - [x] `if ... { ... } else if ...`
-    - [ ] Type checking.
+    - [x] Type checking.
 - [x] For statement
     - [x] `for <pre-st>; <condition>; <post-st> { ... }`
     - [x] `for <pre-st>; ; <post-st> { ... }`
@@ -127,7 +127,7 @@ The list will grow as I go.
     - [x] `for ; <condition>; { ... }`
     - [x] `for ; ; { ... }`
     - [x] `for <condition> { ... }`
-    - [ ] Type checking.
+    - [x] Type checking.
 - [ ] Arithmetic expressions
     - [x] `-a`
     - [x] `+a`
@@ -166,7 +166,7 @@ The list will grow as I go.
     - [x] `!n`
     - [x] `a && b`
     - [x] `a || b`
-- [ ] ASTNode/Type checksing
+- [x] ASTNode/Type checking
 
 # To be determined
 

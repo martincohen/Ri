@@ -149,7 +149,7 @@ testri_resolve() {
     // testri_file_("for-condition-error-is-st");
 
     testri_file_("op-arithmetic");
-    testri_file_("op-arithmetic-error-type-mismatch");
+    testri_file_("op-arithmetic-type-mismatch-error");
     testri_file_("op-bitwise");
     testri_file_("op-boolean");
     testri_file_("op-comparison");
@@ -157,10 +157,7 @@ testri_resolve() {
     testri_file_("cast-bool");
     testri_file_("cast-int-to-bool-error");
     testri_file_("cast-float-to-bool-error");
-
-    // testri_file_("op-comparison1");
-
-    // testri_file_("op-call-type-arguments-count-error");
+    testri_file_("cast-arguments-count-error");
 }
 
 void
