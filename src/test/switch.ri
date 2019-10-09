@@ -1,0 +1,6 @@
+var a int32;
+
+switch a {
+    case 1:
+
+}
