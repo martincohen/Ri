@@ -1,0 +1,7 @@
+func main(a int32) (b int32) {
+    a = a + 1;
+    a = a + a;
+    return a;
+}
+
+main();

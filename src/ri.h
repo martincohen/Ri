@@ -5,6 +5,7 @@
 #define RI_CHECK CHECK
 #define RI_ASSERT ASSERT
 #define RI_ABORT FAIL
+#define RI_UNREACHABLE FAIL("unreachable")
 #define RI_LOG LOG
 #define RI_LOG_DEBUG LOG_DEBUG
 
@@ -13,6 +14,7 @@ typedef struct RiPos RiPos;
 typedef struct RiError RiError;
 typedef struct RiStream RiStream;
 typedef struct RiToken RiToken;
+typedef struct RiLiteral RiLiteral;
 typedef struct RiNode RiNode;
 typedef struct RiNodeMeta RiNodeMeta;
 typedef struct RiScope RiScope;
@@ -49,6 +51,7 @@ enum RiErrorKind {
     RiError_CyclicDeclaration,
     RiError_CyclicType,
     RiError_Type,
+    RiError_UnknownType,
     RiError_Argument,
 };
 
@@ -69,6 +72,10 @@ enum RiTokenKind
     RiToken_End,
     RiToken_Identifier,
 
+    RiToken_Integer,
+    RiToken_Real,
+    RiToken_String,
+
     RiToken_Keyword_Func,
     RiToken_Keyword_Variable,
     RiToken_Keyword_Const,
@@ -87,6 +94,10 @@ enum RiTokenKind
     RiToken_Keyword_Break,
     RiToken_Keyword_Continue,
     RiToken_Keyword_Fallthrough,
+
+    RiToken_Keyword_True,
+    RiToken_Keyword_False,
+    RiToken_Keyword_Nil,
 
     RiToken_LP,
     RiToken_RP,
@@ -205,6 +216,7 @@ enum RiNodeKind
 {
     RiNode_Unknown,
 
+    RiNode_Module,
     RiNode_Scope,
 
     RiNode_Id,
@@ -213,6 +225,7 @@ enum RiNodeKind
         RiNode_Spec_Var,
         RiNode_Spec_Func,
         RiNode_Spec_Type_FIRST__,
+            RiNode_Spec_Type_None,
             RiNode_Spec_Type_Func,
             RiNode_Spec_Type_Struct,
             RiNode_Spec_Type_Union,
@@ -251,19 +264,19 @@ enum RiNodeKind
         RiNode_Value_Var,
         RiNode_Value_Func,
         RiNode_Value_Type,
+        RiNode_Value_Const_FIRST__,
+            RiNode_Value_Const_Bool,
+            RiNode_Value_Const_Integer,
+            RiNode_Value_Const_Real,
+            RiNode_Value_Const_String,
+            // Nil
+        RiNode_Value_Const_LAST__,
     RiNode_Value_LAST__,
 
     RiNode_Expr_FIRST__,
         RiNode_Expr_Call,
         RiNode_Expr_Cast,
         RiNode_Expr_AddrOf,
-
-        RiNode_Expr_Literal_FIRST__,
-            RiNode_Expr_Literal_Integer,
-            RiNode_Expr_Literal_Real,
-            RiNode_Expr_Literal_String,
-        RiNode_Expr_Literal_LAST__,
-
 
         RiNode_Expr_Unary_FIRST__,
             // Arithmetic
@@ -285,20 +298,26 @@ enum RiNodeKind
 
             RiNode_Expr_Binary_Numeric_FIRST__,
                 // Arithmetic
-                RiNode_Expr_Binary_Add,
-                RiNode_Expr_Binary_Sub,
-                RiNode_Expr_Binary_Mul,
-                RiNode_Expr_Binary_Div,
-                RiNode_Expr_Binary_Mod,
+                RiNode_Expr_Binary_Numeric_Arithmetic_FIRST__,
+                    RiNode_Expr_Binary_Numeric_Arithmetic_Add,
+                    RiNode_Expr_Binary_Numeric_Arithmetic_Sub,
+                    RiNode_Expr_Binary_Numeric_Arithmetic_Mul,
+                    RiNode_Expr_Binary_Numeric_Arithmetic_Div,
+                    RiNode_Expr_Binary_Numeric_Arithmetic_Mod,
+                RiNode_Expr_Binary_Numeric_Arithmetic_LAST__,
                 // Bitwise
-                RiNode_Expr_Binary_BXor,
-                RiNode_Expr_Binary_BAnd,
-                RiNode_Expr_Binary_BOr,
-                RiNode_Expr_Binary_BShL,
-                RiNode_Expr_Binary_BShR,
+                RiNode_Expr_Binary_Numeric_Bitwise_FIRST__,
+                    RiNode_Expr_Binary_Numeric_Bitwise_BXor,
+                    RiNode_Expr_Binary_Numeric_Bitwise_BAnd,
+                    RiNode_Expr_Binary_Numeric_Bitwise_BOr,
+                    RiNode_Expr_Binary_Numeric_Bitwise_BShL,
+                    RiNode_Expr_Binary_Numeric_Bitwise_BShR,
+                RiNode_Expr_Binary_Numeric_Bitwise_LAST__,
                 // Boolean
-                RiNode_Expr_Binary_And,
-                RiNode_Expr_Binary_Or,
+                RiNode_Expr_Binary_Numeric_Boolean_FIRST__,
+                    RiNode_Expr_Binary_Numeric_Boolean_And,
+                    RiNode_Expr_Binary_Numeric_Boolean_Or,
+                RiNode_Expr_Binary_Numeric_Boolean_LAST__,
             RiNode_Expr_Binary_Numeric_LAST__,
 
             RiNode_Expr_Binary_Comparison_FIRST__,
@@ -345,8 +364,15 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
 #define ri_is_in(NodeKind, Prefix) \
     ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
 
-#define ri_is_expr_or_id(NodeKind) \
-    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id)
+#define ri_is_expr_like(NodeKind) \
+    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || (ri_is_in(NodeKind, RiNode_Value_Const)))
+
+struct RiLiteral {
+    uint64_t integer;
+    double real;
+    String string;
+    bool boolean;
+};
 
 struct RiNode
 {
@@ -359,6 +385,10 @@ struct RiNode
         struct {
             String name;
         } id;
+
+        struct {
+            RiNode* scope;
+        } module;
 
         struct {
             Map map;
@@ -381,7 +411,15 @@ struct RiNode
 
                 struct {
                     RiNode* type;
+                    // Used by compiler.
+                    // TODO: Make extensible by a custom type.
+                    uint32_t slot;
                 } var;
+
+                struct {
+                    RiNode* type;
+                    RiLiteral value;
+                } constant;
 
                 struct {
                     RiTypeCompleteness completeness;
@@ -423,7 +461,12 @@ struct RiNode
         struct {
             RiNode* spec;
             RiNode* type;
+            // Used for inline constants, otherwise spec is not NULL.
+            // All literals are resolved to their final type in resolve phase.
+            // For untyped constants, spec == NULL and type == NULL.
+            RiLiteral constant;
         } value;
+
 
         // Statements
 
@@ -472,6 +515,7 @@ struct Ri {
     RiStream stream;
     RiToken token;
     RiNode* scope;
+    RiNode* module;
     RiNodeArray pending;
 
 
@@ -496,7 +540,13 @@ struct Ri {
     const char* id_continue;
     const char* id_fallthrough;
 
+    const char* id_true;
+    const char* id_false;
+    const char* id_nil;
+
     RiNodeMeta node_meta[RiNode_COUNT__];
+
+    bool debug_tokens;
 };
 
 //
@@ -509,3 +559,4 @@ void ri_purge(Ri* ri);
 void ri_log(Ri* ri, RiNode* node);
 RiNode* ri_parse(Ri* ri, String stream, String path);
 RiNode* ri_resolve(Ri* ri, RiNode* node);
+RiNode* ri_build(Ri* ri, String stream, String path);

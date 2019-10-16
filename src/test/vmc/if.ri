@@ -1,0 +1,17 @@
+func main(a int32) (b int32)
+{
+    // If with pre-statement.
+    // TODO: Assignment.
+    if var p int32; a == 1 {
+        a = 2;
+    }
+
+    // If without pre-statement
+    if a == 1 {
+        a = 2;
+    }
+
+    return a;
+}
+
+main();

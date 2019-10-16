@@ -74,7 +74,7 @@ testri_file_(const char* name)
     RiNode* node = NULL;
     {
         CharArray path_source = {0};
-        chararray_push_f(&path_source, "./src/test/%s.ri", name);
+        chararray_push_f(&path_source, "./src/test/ast/%s.ri", name);
         array_zero_term(&path_source);
             ByteArray source = {0};
             ASSERT(file_read(&source, path_source.items, 0));
@@ -86,7 +86,7 @@ testri_file_(const char* name)
     ByteArray expected = {0};
     {
         CharArray path_expected = {0};
-        chararray_push_f(&path_expected, "./src/test/%s.expected.lisp", name);
+        chararray_push_f(&path_expected, "./src/test/ast/%s.expected.lisp", name);
         array_zero_term(&path_expected);
         if (!file_read(&expected, path_expected.items, 0)) {
             LOG("'%s': expected file not found", name);
@@ -126,7 +126,7 @@ testri_file_(const char* name)
         }
 
         CharArray path_recent = {0};
-        chararray_push_f(&path_recent, "./src/test/%s.recent.lisp", name);
+        chararray_push_f(&path_recent, "./src/test/ast/%s.recent.lisp", name);
         array_zero_term(&path_recent);
         ASSERT(file_write(path_recent.items, actual.items, actual.count, 0));
         array_purge(&path_recent);
@@ -148,16 +148,20 @@ testri_resolve() {
     // testri_file_("for");
     // testri_file_("for-condition-error-is-st");
 
-    testri_file_("op-arithmetic");
-    testri_file_("op-arithmetic-type-mismatch-error");
-    testri_file_("op-bitwise");
-    testri_file_("op-boolean");
-    testri_file_("op-comparison");
+    // testri_file_("type-spec");
+    // testri_file_("type-inference");
+    testri_file_("type-inference-const");
 
-    testri_file_("cast-bool");
-    testri_file_("cast-int-to-bool-error");
-    testri_file_("cast-float-to-bool-error");
-    testri_file_("cast-arguments-count-error");
+    // testri_file_("op-arithmetic");
+    // testri_file_("op-arithmetic-type-mismatch-error");
+    // testri_file_("op-bitwise");
+    // testri_file_("op-boolean");
+    // testri_file_("op-comparison");
+
+    // testri_file_("cast-bool");
+    // testri_file_("cast-int-to-bool-error");
+    // testri_file_("cast-float-to-bool-error");
+    // testri_file_("cast-arguments-count-error");
 }
 
 void

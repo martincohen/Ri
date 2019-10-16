@@ -1,0 +1,23 @@
+// TODO: Test for error with a int64
+var a int32;
+var i32 int32;
+
+// Infer from `i32`
+i32 = 1 + 1;
+// Infer from `a`
+i32 = a + 1;
+// Infer from `a`
+i32 = 1 + a;
+
+i32 = a + -1;
+i32 = -1 + a;
+i32 = -1;
+
+// var b bool;
+
+// b = (1 < 1);
+// b = (1 <= 1);
+// b = (1 > 1);
+// b = (1 >= 1);
+// b = (1 == 1);
+// b = (1 != 1);

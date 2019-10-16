@@ -33,46 +33,86 @@ See README.md for high-level tasks.
     - NO: We'll need it to refer to the declaration, but still hold information about the place of use (like position).
 - [x] Explicit casting `int32(expr)`
     - Parsed as call, resolved as a `(expr-cast type expr)`
+- [x] Bitwise operators should only work with int* types (no bool).
+    - `x & false (operator & not defined on bool)`
+- [x] Allow casting bool to int and float
+- [x] `bool` is 8 bit
+- [x] Actual type checking done for expressions:
+- [x] Type checking for everything except function arguments.
 
 ## Next
 
-- [ ] Bitwise operators should only work with int* types (no bool).
-    - `x & false (operator & not defined on bool)`
-- [ ] Cannot cast bool to int
-- [ ] `bool` is 8 bit
-- [ ] Implement decl+assigment `var a int32 = b;`
+### VM
 
-- [ ] `switch..case` statement
-- [ ] Warnings
+- [x] Draft instruction set
+- [x] Draft functions
+- [x] Draft values (var, const)
+- [x] Draft `+` binary operator
+- [x] Draft `if` compile
+
+- [ ] Fix bug in AST (see bellow), then enable `op-binary` tests.
+- [ ] Compile "root" as module-init function.
+- [ ] Draft constant folding
+- [ ] Draft calls
+    - `Push <value>`
+    - `Push <value>`
+    - `Push <value>`
+    - `Call <func>`
+    - `Drop <count>`
+- [ ] Draft VM execution
+- [ ] Draft x64 compilation
+
+### AST
+
+- [ ] BUG: When we're resolving `var b bool = 1 || 1` we get: `cannot cast integer constant to deduced type bool` at first `1`.
+    - `||` expects both arguments to be `bool`, but the error seems to be caused by the assignment forcing it's rhs to expect `bool` and the resolution of `||` just inherits that, as the code there is not touching the `expected_type`.
+- [x] Integer constants
+- [x] Typed constants
+- [ ] Named typed constants
+- [ ] Real constants
+- [ ] String constants
+- [ ] Initializer constants
+- [ ] Type inference:
+    - [x] Constant type inference infrastructure
+    - [ ] Implement `var x = <expr>;` for type inference.
+
+- [ ] Parsing type spec.
+    - Parsing `func (...) (...)` as function type spec.
+    - Parsing `struct {...}` as struct type spec.
+- [ ] Parsing type declaration.
+    - `type <name> <type-spec>`
+    - `type <name> = <other-name>` for declaring type that implicitly casts to `other-name`
+    ` `type <name> <other-name>` for declaring new type that has same semantics, but doesn't implicitly cast to `other-name`
+- [ ] Implement decl+assigment `var a int32 = b;`
+- [ ] Implement `switch..case` statement
+    - Use `break` or `fallthrough`?
+
 - [ ] Packages
+    - Directory works as a package
+    - All files in directory are treated as if they were a single file.
+        - All declarations are visible.
+    - Explicit exports?
+        - Use `_` prefix to mark functions that should not export.
+        - Tests can still access these (compiler only issues a warning).
+        - Are test going to be part of the package? Would make sense.
 - [ ] Get rid of need for semicolon after `{...}` in function parser.
-- [ ] Actual type checking done for expressions:
-    - 'Is L a variable with numeric type?'
-    - 'Is R a variable with numeric type?'
-    - 'Do types of L and R match?'
-- [ ] Type checking
-    - [ ] Binary
-    - [ ] Unary
-        - Must be numeric
-    - [ ] Type call
-        [ ] Args
-        [ ] Number of arguments
-    - [ ] Expression call
-        [ ] Args
-        [ ] Number of arguments
+- [ ] Type checking for call arguments.
+- [ ] Warnings
 
 - [ ] Testing error states.
 - [ ] Implement `Type_Pointer`.
 
-
-
 # Read
 
+- https://www.youtube.com/watch?v=eF9qWbuQLuw&list=PLzLzYGEbdY5n9ITKUqOuRjXkRU5tMW2Sd&index=2
 - https://blog.golang.org/gos-declaration-syntax
 - https://talks.golang.org/2012/10things.slide
 
 # Later
 
+- [ ] Non-critical errors should not panic.
+    - Non-critical means we can fix the errors temporarily so they won't cause more cascading problems.
+    - For example skip entire statements when parsing, or fix casting errors.
 - [ ] Memory optimizations:
     [ ] Implement a different type of array, one that keeps it's properties (count, capacity) on the heap (should take less space in `RiNode` union).
 - [ ] Use `longjmp` for error handling. Register arrays to `ri->array`:
@@ -85,40 +125,25 @@ See README.md for high-level tasks.
 ```
     - https://en.cppreference.com/w/cpp/utility/program/setjmp
 - [ ] Properly `purge` AST (dealloc arrays).
-- [ ] Type inference:
-    - [ ] Implement `var x = <expr>;` for type inference.
 - [ ] Collapse FIRST and LAST values in enums.
 - [ ] Implement this?
         - `var main function(...)`
         - `main = { ... }`
 
-# Priorities
+## Interpreter
 
-- x64 only
-- binary C compatibility
+- Compile first to WASM.
+- Compile to straightforward x64
+- Register allocation
+    - 2 variants:
+        a) Allocate all parameters in registers, the rest goes to memory.
+            - Use virtual slots to do the allocation so the strategy can be changed.
+        b) Use two-register stack machine unwinding.
+            - All variables are in "stack" memory.
+            - We pull and push as we need.
+            - We keep the two top-most in registers.
 
-# Features
-
-- Numeric type promotion and coercion
-- Type inference
-- Flow control
-    - `for statement; condition; statement { ... }`
-        - `for condition { ... }` (a.k.a. while)
-        - `for { ... }` (infinite for)
-        - `do..while` -> https://yourbasic.org/golang/do-while-loop/
-- Pointer
-    - `*int`
-    - Arithmetic
-- Struct
-    - Anonymous struct member
-    - Initializer
-    - Dot `struct.field`
-- Union
-- Functions
-    - Function reference casting (pointers are the same)
-- Packages
-
-## Later
+# Future
 
 - Enums
 - Interfaces

@@ -1,0 +1,29 @@
+func main(a int32) (b int32)
+{
+    // If with else.
+    if a == 1 {
+        a = 3;
+    } else {
+        a = 4;
+    }
+
+    // If with else if.
+    if a == 1 {
+        a = 3;
+    } else if a == 2 {
+        a = 4;
+    }
+
+    // If with else if and else.
+    if a == 1 {
+        a = 3;
+    } else if a == 2 {
+        a = 4;
+    } else {
+        a = 5;
+    }
+
+    return a;
+}
+
+main();

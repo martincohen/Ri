@@ -1,0 +1,7 @@
+// Function type as variable.
+var a func(x int32) (r int32);
+
+// Function type as function argument.
+func main(a func(x int32) (r int32), b int32) (r int32) {
+
+}
