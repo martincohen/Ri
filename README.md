@@ -66,18 +66,26 @@ Standalone programs:
 
 The work is split to phases:
 
-- **Phase 1** AST: Basics
+- **Phase 1** AST: Basics (current)
     - Lexer, parser and resolver basics
     - All statements
     - Simple scalar types
-- **Phase 2** AST: Pointer, Struct, Union, Initializers, Enum
+    - Draft VM compilation
+- **Phase 2** AST: Compound types
+    - Enum
+    - Pointer
+    - Struct
+    - Union
+    - Initializers
 - **Phase 3** AST: Slices
     - C arrays with count
-- Integration with _Runt_ using simple AST interpreter for initializers.
-- Packages
-- Compiling to C
-- Compiling to VM
-- Compiling to x64
+    - Packages
+- **Phase 4** VM: Compilation and Execution
+    - Compiling to VM
+    - Integration with _Runt_ using simple AST interpreter for initializers.
+- **Later**:
+    - Compiling VM to x64
+    - Compiling to C
 
 The list will grow as I go.
 
@@ -104,6 +112,16 @@ The list will grow as I go.
     - [ ] Enum
     - [ ] Slices
         - `[]type`
+- [ ] Constants
+    [ ] Untyped constant literal
+        [x] Integer
+        [x] Real
+        [x] Boolean
+        [ ] String
+        [ ] Initializers
+        [ ] Nil
+    [ ] Typed named constants
+    [ ] Untyped named constants
 - [ ] Comments
     - [x] Line comments
     - [ ] Block comments
@@ -128,7 +146,7 @@ The list will grow as I go.
     - [x] `for ; ; { ... }`
     - [x] `for <condition> { ... }`
     - [x] Type checking.
-- [ ] Arithmetic expressions
+- [x] Arithmetic expressions
     - [x] `-a`
     - [x] `+a`
     - [ ] `--a` (L, TBD)
@@ -145,7 +163,7 @@ The list will grow as I go.
     - [x] `a -= b`
     - [x] `a *= b`
     - [x] `a /= b`
-- [ ] Bitwise expressions
+- [x] Bitwise expressions
     - [x] `~n`
     - [x] `a ^ b`
     - [x] `a & b`
@@ -155,14 +173,14 @@ The list will grow as I go.
     - [x] `a &= b`
     - [x] `a |= b`
     - [x] `a ^= b`
-- [ ] Comparison expressions
+- [x] Comparison expressions
     - [x] `a < b`
     - [x] `a > b`
     - [x] `a <= b`
     - [x] `a >= b`
     - [x] `a == b`
     - [x] `a != b`
-- [ ] Boolean expressions
+- [x] Boolean expressions
     - [x] `!n`
     - [x] `a && b`
     - [x] `a || b`

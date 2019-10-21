@@ -1,0 +1,9 @@
+var a0 int32 = 1;
+var a1 int32 = 1 + 1;
+
+// Infer type from `a0`.
+var c0 = a0;
+// Infer type from `a0`.
+var c1 = a0 + 2;
+// Defaults to `int64`.
+var d = 1;

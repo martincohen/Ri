@@ -1,0 +1,4 @@
+var a int64;
+var i32 int32;
+
+i32 = a + 1;

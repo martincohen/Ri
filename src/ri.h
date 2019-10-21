@@ -225,12 +225,17 @@ enum RiNodeKind
         RiNode_Spec_Var,
         RiNode_Spec_Func,
         RiNode_Spec_Type_FIRST__,
-            RiNode_Spec_Type_None,
+            // Used with `var a = 1` to set a's type to Infer.
+            RiNode_Spec_Type_Infer,
             RiNode_Spec_Type_Func,
             RiNode_Spec_Type_Struct,
             RiNode_Spec_Type_Union,
             RiNode_Spec_Type_Pointer,
             RiNode_Spec_Type_Number_FIRST__,
+                RiNode_Spec_Type_Number_None_FIRST__,
+                    RiNode_Spec_Type_Number_None_Int,
+                    RiNode_Spec_Type_Number_None_Real,
+                RiNode_Spec_Type_Number_None_LAST__,
                 RiNode_Spec_Type_Number_Bool,
                 RiNode_Spec_Type_Number_Int_FIRST__,
                     RiNode_Spec_Type_Number_Int_Signed_FIRST__,
@@ -264,13 +269,7 @@ enum RiNodeKind
         RiNode_Value_Var,
         RiNode_Value_Func,
         RiNode_Value_Type,
-        RiNode_Value_Const_FIRST__,
-            RiNode_Value_Const_Bool,
-            RiNode_Value_Const_Integer,
-            RiNode_Value_Const_Real,
-            RiNode_Value_Const_String,
-            // Nil
-        RiNode_Value_Const_LAST__,
+        RiNode_Value_Const,
     RiNode_Value_LAST__,
 
     RiNode_Expr_FIRST__,
@@ -365,7 +364,7 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
     ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
 
 #define ri_is_expr_like(NodeKind) \
-    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || (ri_is_in(NodeKind, RiNode_Value_Const)))
+    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Const))
 
 struct RiLiteral {
     uint64_t integer;

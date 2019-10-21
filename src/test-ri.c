@@ -96,6 +96,9 @@ testri_file_(const char* name)
 
     if (node != NULL) {
         node = ri_resolve(&ri, node);
+        if (!ri_typecheck(&ri, node)) {
+            node = NULL;
+        }
     }
 
     {
@@ -142,15 +145,21 @@ void
 testri_resolve() {
     // testri_file_("test1");
 
+    testri_file_("parse-real");
+
     // testri_file_("decl");
     // testri_file_("if");
     // testri_file_("if-condition-error-bool");
     // testri_file_("for");
     // testri_file_("for-condition-error-is-st");
 
+    // testri_file_("assignment-infer-error");
+    // testri_file_("assignment");
+
     // testri_file_("type-spec");
-    // testri_file_("type-inference");
-    testri_file_("type-inference-const");
+    // testri_file_("type-inference-const");
+    // testri_file_("type-inference-const-binary-left-error");
+    // testri_file_("type-inference-const-binary-right-error");
 
     // testri_file_("op-arithmetic");
     // testri_file_("op-arithmetic-type-mismatch-error");

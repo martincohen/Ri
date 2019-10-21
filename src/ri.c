@@ -169,12 +169,12 @@ ri_make_id_(Ri* ri, String string) {
 //
 //
 
-static inline int
+static inline bool
 ri_rune_is_id_(char c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_');
 }
 
-static inline int
+static inline bool
 ri_rune_is_number_(char c) {
     return (c >= '0' && c <= '9');
 }
@@ -189,6 +189,83 @@ ri_lex_one_or_two_(Ri* ri, char** it, char* end, enum RiTokenKind op0, char ch, 
     } else {
         return op0;
     }
+}
+
+static inline bool
+ri_lex_real_decimal_(char** it_, char* end)
+{
+    char* it = *it_;
+    if (it < end && ri_rune_is_number_(*it)) {
+        ++it;
+        while (it < end && ri_rune_is_number_(*it)) ++it;
+        *it_ = it;
+        return true;
+    }
+    return false;
+}
+
+static inline bool
+ri_lex_real_exponent_(char** it_, char* end)
+{
+    return false;
+}
+
+// NOTE: Expects the stream to end with 0.
+static inline RiTokenKind
+ri_lex_number_(Ri* ri, char** it_, char* end, RiToken* token)
+{
+    // <digit+>?.<digit+>([eE][+-]<digit+>)?
+    char* it = *it_;
+    token->kind = RiToken_Integer;
+    while (ri_rune_is_number_(*it)) ++it;
+
+    if (*it == '.') {
+        token->kind = RiToken_Real;
+        ++it;
+        while (ri_rune_is_number_(*it)) ++it;
+    }
+
+    if (*it == 'e' || *it == 'E') {
+        token->kind = RiToken_Real;
+        ++it;
+        if (*it == '+' || *it == '-') ++it;
+        if (!ri_rune_is_number_(*it)) {
+            token->pos.col += *it_ - it;
+            ri_error_set_(ri, RiError_UnexpectedCharacter, token->pos, "digit or '+' or '-' expected");
+            return false;
+        } else {
+            ++it;
+            while (ri_rune_is_number_(*it)) ++it;
+        }
+    }
+
+    switch (token->kind)
+    {
+        case RiToken_Integer: {
+            uint64_t i = 0;
+            char* start = *it_;
+            while (start < it && ri_rune_is_number_(*start)) {
+                // TODO: Check for overflow.
+                i = i * 10 + (*start - '0');
+                ++start;
+            }
+            token->integer = i;
+        } break;
+
+        case RiToken_Real: {
+            double r = strtod(*it_, NULL);
+            if (r == HUGE_VAL) {
+                ri_error_set_(ri, RiError_UnexpectedToken, token->pos, "real constant too large");
+            }
+            token->real = r;
+        } break;
+
+        default:
+            RI_UNREACHABLE;
+    }
+
+    *it_ = it;
+    return true;
 }
 
 static bool
@@ -242,7 +319,6 @@ next:
         case ')': ++it; token->kind = RiToken_RP; break;
         case '{': ++it; token->kind = RiToken_LB; break;
         case '}': ++it; token->kind = RiToken_RB; break;
-        case '.': ++it; token->kind = RiToken_Dot; break;
         case ',': ++it; token->kind = RiToken_Comma; break;
         case ';': ++it; token->kind = RiToken_Semicolon; break;
 
@@ -414,16 +490,24 @@ next:
             }
         } break;
 
+        case '.':
+            ++it;
+            if (ri_rune_is_number_(*it)) {
+                --it;
+                if (ri_lex_number_(ri, &it, end, &ri->token) == false) {
+                    return false;
+                }
+                RI_CHECK(ri->token.kind == RiToken_Real);
+            } else {
+                token->kind = RiToken_Dot;
+            }
+            break;
+
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9': {
-            token->kind = RiToken_Integer;
-            uint64_t i = 0;
-            while (it < end && ri_rune_is_number_(*it)) {
-                // TODO: Check for overflow.
-                i = i * 10 + (*it - '0');
-                ++it;
+            if (ri_lex_number_(ri, &it, end, &ri->token) == false) {
+                return false;
             }
-            token->integer = i;
         } break;
 
         default: {
@@ -595,8 +679,7 @@ ri_retof_(Ri* ri, RiNode* node)
                     return NULL;
                 }
                 break;
-            case RiNode_Value_Const_Bool:
-            case RiNode_Value_Const_Integer:
+            case RiNode_Value_Const:
                 RI_CHECK(node->value.type);
                 return node->value.type;
             // case RiNode_Expr_Literal_Real:
@@ -945,8 +1028,19 @@ ri_parse_expr_operand_(Ri* ri)
         } break;
 
         case RiToken_Integer: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const_Integer);
+            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const);
             node->value.constant.integer = ri->token.integer;
+            node->value.type = ri->node_meta[RiNode_Spec_Type_Number_None_Int].node;
+            if (ri_lex_next_(ri)) {
+                return node;
+            }
+            return NULL;
+        } break;
+
+        case RiToken_Real: {
+            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const);
+            node->value.constant.real = ri->token.real;
+            node->value.type = ri->node_meta[RiNode_Spec_Type_Number_None_Real].node;
             if (ri_lex_next_(ri)) {
                 return node;
             }
@@ -958,8 +1052,9 @@ ri_parse_expr_operand_(Ri* ri)
 
         case RiToken_Keyword_False:
         case RiToken_Keyword_True: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const_Bool);
+            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const);
             node->value.constant.boolean = (ri->token.kind == RiToken_Keyword_True);
+            node->value.type = ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
             if (ri_lex_next_(ri)) {
                 return node;
             }
@@ -1256,9 +1351,18 @@ ri_parse_decl_variable_(Ri* ri)
         return NULL;
     }
 
-    RiNode* type = ri_parse_type_(ri);
-    if (!type) {
-        return NULL;
+    RiNode* type;
+    // `=` or `type-spec`
+    if (ri->token.kind == RiToken_Eq) {
+        // if (!ri_lex_next_(ri)) {
+        //     return NULL;
+        // }
+        type = ri->node_meta[RiNode_Spec_Type_Infer].node;
+    } else {
+        type = ri_parse_type_(ri);
+        if (!type) {
+            return NULL;
+        }
     }
 
     RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type);
@@ -1700,7 +1804,6 @@ ri_parse_st_simple_(Ri* ri)
             }
 
             // Assignment.
-            // TODO: Make required if the var decl lacks type.
             switch (ri_lex_next_if_(ri, RiToken_Eq))
             {
                 case RiLexNextIf_Match: {
@@ -1709,6 +1812,12 @@ ri_parse_st_simple_(Ri* ri)
                         node = ri_make_st_assign_(ri, pos, RiNode_St_Assign, node, right);
                     }
                 } break;
+                // case RiLexNextIf_NoMatch: {
+                //     if (node->decl.spec->spec.var.type->kind == RiNode_Spec_Type_Infer) {
+                //         ri_error_set_unexpected_token_(ri, &ri->token);
+                //         return NULL;
+                //     }
+                // }
                 case RiLexNextIf_Error:
                     // Assumes node == NULL.
                     break;
@@ -1760,7 +1869,7 @@ ri_parse_st_(Ri* ri)
 
         default:
             node = ri_parse_st_simple_(ri);
-            if (node && !ri_lex_expect_token_(ri, RiToken_Semicolon)) {
+            if (!node || !ri_lex_expect_token_(ri, RiToken_Semicolon)) {
                 return NULL;
             }
             break;
@@ -1813,7 +1922,8 @@ ri_parse(Ri* ri, String stream, String path)
 //
 //
 
-#define RI_RESOLVE_F_(Name) bool Name(Ri* ri, RiNode** node, RiNode* expected_type)
+// NOTE: `expected_type` is used to cast constants if possible.
+#define RI_RESOLVE_F_(Name) bool Name(Ri* ri, RiNode** node)
 typedef RI_RESOLVE_F_(RiResolveF_);
 
 static RI_RESOLVE_F_(ri_resolve_identifier_);
@@ -1824,8 +1934,7 @@ ri_resolve_slice_with_(Ri* ri, RiNodeSlice nodes, RiResolveF_* f)
 {
     RiNode* it;
     slice_eachi(&nodes, i, &it) {
-        // TODO: expected_type
-        if (!f(ri, &it, 0)) {
+        if (!f(ri, &it)) {
             return false;
         }
         slice_at(&nodes, i) = it;
@@ -1837,10 +1946,11 @@ static RI_RESOLVE_F_(ri_resolve_unary_)
 {
     RiNode* n = *node;
 
-    if (!ri_resolve_node_(ri, &n->unary.argument, expected_type)) {
+    if (!ri_resolve_node_(ri, &n->unary.argument)) {
         return false;
     }
 
+#if 0
     // RiNode* ret_type = 0;
     RiNode* arg_type = ri_retof_(ri, n->unary.argument);
 
@@ -1856,7 +1966,7 @@ static RI_RESOLVE_F_(ri_resolve_unary_)
         } else if (ri_is_in(arg_type->kind, RiNode_Spec_Type_Number_Float)) {
             // Allow
         } else {
-            ri_error_set_(ri, RiError_Type, n->pos, "unary %s is not defined for %s",
+            ri_error_set_(ri, RiError_Type, n->pos, "unary %s is not defined for %S",
                 RI_OP_NAMES_[n->kind],
                 ri->node_meta[arg_type->kind].node->spec.id
             );
@@ -1888,6 +1998,7 @@ static RI_RESOLVE_F_(ri_resolve_unary_)
     default:
         RI_TODO;
     }
+#endif
 
     return true;
 }
@@ -1896,103 +2007,20 @@ static RI_RESOLVE_F_(ri_resolve_binary_)
 {
     RiNode* n = *node;
 
-    if (ri_is_in(n->kind, RiNode_Expr_Binary_Numeric_Arithmetic) ||
-        ri_is_in(n->kind, RiNode_Expr_Binary_Numeric_Bitwise)
-    ) {
-        // expected_type = NULL;
-    } else if (ri_is_in(n->kind, RiNode_Expr_Binary_Numeric_Boolean)) {
-        expected_type = ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
-    } else if (ri_is_in(n->kind, RiNode_Expr_Binary_Comparison)) {
-        expected_type = NULL;
-    }
-
-    if (!ri_resolve_node_(ri, &n->binary.argument0, expected_type)) {
-        return false;
-    }
-    RiNode* a0 = n->binary.argument0;
-    RiNode* a0_type = ri_retof_(ri, a0);
-    RI_CHECK(a0_type);
-
-    if (!ri_resolve_node_(ri, &n->binary.argument1, a0_type)) {
-        return false;
-    }
-    RiNode* a1 = n->binary.argument1;
-    RiNode* a1_type = ri_retof_(ri, a1);
-    RI_CHECK(a1_type);
-
-    switch (n->kind)
-    {
-        case RiNode_Expr_Binary_Numeric_Boolean_And:
-        case RiNode_Expr_Binary_Numeric_Boolean_Or:
-            if (a0_type->kind != RiNode_Spec_Type_Number_Bool) {
-                // TODO: Print actual type too.
-                ri_error_set_(ri, RiError_Type, a0->pos, "%s not defined for %S",
-                    RI_OP_NAMES_[n->kind],
-                    ri->node_meta[a0_type->kind].node->spec.id
-                );
-                return false;
-            }
-            if (a1_type->kind != RiNode_Spec_Type_Number_Bool) {
-                // TODO: Print actual type too.
-                ri_error_set_(ri, RiError_Type, a1->pos, "%s not defined for %S",
-                    RI_OP_NAMES_[n->kind],
-                    ri->node_meta[a1_type->kind].node->spec.id
-                );
-                return false;
-            }
-            break;
-
-        case RiNode_Expr_Binary_Numeric_Bitwise_BXor:
-        case RiNode_Expr_Binary_Numeric_Bitwise_BAnd:
-        case RiNode_Expr_Binary_Numeric_Bitwise_BOr:
-        case RiNode_Expr_Binary_Numeric_Bitwise_BShL:
-        case RiNode_Expr_Binary_Numeric_Bitwise_BShR:
-            if (!ri_is_in(a0_type->kind, RiNode_Spec_Type_Number_Int)) {
-                ri_error_set_(ri, RiError_Type, a0->pos, "%s not defined for %S",
-                    RI_OP_NAMES_[n->kind],
-                    ri->node_meta[a0_type->kind].node->spec.id
-                );
-                return false;
-            }
-            break;
-    }
-
-    if (a0_type != a1_type) {
-        ri_error_set_mismatched_types_(ri, n->pos, a0_type, a1_type, RI_OP_NAMES_[n->kind]);
-        return false;
-    }
-
-
-    return true;
+    return (
+        ri_resolve_node_(ri, &n->binary.argument0) &&
+        ri_resolve_node_(ri, &n->binary.argument1)
+    );
 }
 
 static RI_RESOLVE_F_(ri_resolve_assign_)
 {
     RiNode* n = *node;
 
-    if (!ri_resolve_node_(ri, &n->binary.argument0, expected_type)) {
-        return false;
-    }
-
-    RiNode* a0 = n->binary.argument0;
-    RiNode* a0_type  = ri_retof_(ri, a0);
-    RI_CHECK(a0_type);
-
-    if (!ri_resolve_node_(ri, &n->binary.argument1, a0_type)) {
-        return false;
-    }
-
-    RiNode* a1 = n->binary.argument1;
-    RiNode* a1_type = ri_retof_(ri, a1);
-    RI_CHECK(a1_type);
-
-    if (a0_type != a1_type) {
-        // TODO: Print left and right type.
-        ri_error_set_mismatched_types_(ri, n->pos, a0_type, a1_type, "=");
-        return false;
-    }
-
-    return true;
+    return (
+        ri_resolve_node_(ri, &n->binary.argument0) &&
+        ri_resolve_node_(ri, &n->binary.argument1)
+    );
 }
 
 static RI_RESOLVE_F_(ri_resolve_expr_call_func_)
@@ -2007,6 +2035,8 @@ static RI_RESOLVE_F_(ri_resolve_expr_call_func_)
     return true;
 }
 
+// TODO: Move type checking to typecheck phase because here
+// we cannot continue processing after error.
 static RI_RESOLVE_F_(ri_resolve_expr_call_type_)
 {
     RiNode* n = *node;
@@ -2074,11 +2104,13 @@ static RI_RESOLVE_F_(ri_resolve_st_if_)
 {
     RiNode* n = *node;
 
-    if (n->st_if.pre && !ri_resolve_node_(ri, &n->st_if.pre, 0)) {
+    if (n->st_if.pre && !ri_resolve_node_(ri, &n->st_if.pre)) {
         return false;
     }
 
-    if (!ri_resolve_node_(ri, &n->st_if.condition, 0)) {
+    // No expected type, as we expect it'll be bool right away.
+    // So `if 1 { ... }` won't pass and result in error.
+    if (!ri_resolve_node_(ri, &n->st_if.condition)) {
         return false;
     }
     RiNode* condition_type = ri_retof_(ri, n->st_if.condition);
@@ -2090,7 +2122,7 @@ static RI_RESOLVE_F_(ri_resolve_st_if_)
         return false;
     }
 
-    if (!ri_resolve_node_(ri, &n->st_if.scope, 0)) {
+    if (!ri_resolve_node_(ri, &n->st_if.scope)) {
         return false;
     }
 
@@ -2101,11 +2133,11 @@ static RI_RESOLVE_F_(ri_resolve_st_for_)
 {
     RiNode* n = *node;
 
-    if (n->st_for.pre && !ri_resolve_node_(ri, &n->st_for.pre, 0)) {
+    if (n->st_for.pre && !ri_resolve_node_(ri, &n->st_for.pre)) {
         return false;
     }
     if (n->st_for.condition) {
-        if (!ri_resolve_node_(ri, &n->st_for.condition, 0)) {
+        if (!ri_resolve_node_(ri, &n->st_for.condition)) {
             return false;
         }
         RiNode* condition_type = ri_retof_(ri, n->st_for.condition);
@@ -2117,10 +2149,10 @@ static RI_RESOLVE_F_(ri_resolve_st_for_)
             return false;
         }
     }
-    if (n->st_for.post && !ri_resolve_node_(ri, &n->st_for.post, 0)) {
+    if (n->st_for.post && !ri_resolve_node_(ri, &n->st_for.post)) {
         return false;
     }
-    if (!ri_resolve_node_(ri, &n->st_for.scope, 0)) {
+    if (!ri_resolve_node_(ri, &n->st_for.scope)) {
         return false;
     }
 
@@ -2171,14 +2203,14 @@ static RI_RESOLVE_F_(ri_resolve_identifier_)
             switch (decl->decl.spec->kind)
             {
                 case RiNode_Spec_Func:
-                    if (!ri_resolve_node_(ri, &decl->decl.spec->spec.func.type, 0)) {
+                    if (!ri_resolve_node_(ri, &decl->decl.spec->spec.func.type)) {
                         return false;
                     }
                     array_push(&ri->pending, decl->decl.spec->spec.func.scope);
                     break;
 
                 case RiNode_Spec_Var:
-                    if (!ri_resolve_node_(ri, &decl->decl.spec->spec.var.type, 0)) {
+                    if (!ri_resolve_node_(ri, &decl->decl.spec->spec.var.type)) {
                         return false;
                     }
                     break;
@@ -2221,7 +2253,7 @@ ri_resolve_func_args_(Ri* ri, RiNode* func_type, RiNodeSlice* args)
     slice_each(args, &it) {
         RI_CHECK(it->kind == RiNode_Decl);
         RI_CHECK(it->decl.spec->kind == RiNode_Spec_Var);
-        if (!ri_resolve_node_(ri, &it->decl.spec->spec.var.type, 0)) {
+        if (!ri_resolve_node_(ri, &it->decl.spec->spec.var.type)) {
             return false;
         }
     }
@@ -2234,157 +2266,88 @@ RI_RESOLVE_F_(ri_resolve_node_)
     RiNode* n = *node;
 
     if (n->kind == RiNode_Decl) {
-        // Skip.
-        // TODO: If enabled, it would resolve all declarations,
-        // otherwise only used declarations are resolved.
+        switch (n->decl.spec->kind) {
+            case RiNode_Spec_Var:
+                return ri_resolve_node_(ri, &n->decl.spec->spec.var.type);
+        }
         return true;
     } else if (ri_is_in(n->kind, RiNode_St_Assign)) {
-        if (!ri_resolve_assign_(ri, &n, 0)) {
-            return false;
-        }
+        return ri_resolve_assign_(ri, node);
     } else if (ri_is_in(n->kind, RiNode_Expr_Binary)) {
-        if (!ri_resolve_binary_(ri, &n, expected_type)) {
-            return false;
-        }
+        return ri_resolve_binary_(ri, node);
     } else if (ri_is_in(n->kind, RiNode_Expr_Unary)) {
-        if (!ri_resolve_unary_(ri, &n, expected_type)) {
-            return false;
-        }
+        return ri_resolve_unary_(ri, node);
     } else if (ri_is_in(n->kind, RiNode_Spec_Type_Number)) {
         // Nothing to do.
+        return true;
+    } else if (n->kind == RiNode_Spec_Type_Infer) {
+        return true;
     } else {
         switch (n->kind)
         {
-            case RiNode_Scope: {
-                if (!ri_resolve_slice_with_(ri, n->scope.statements.slice, &ri_resolve_node_)) {
-                    return false;
-                }
-            } break;
+            case RiNode_Scope:
+                return ri_resolve_slice_with_(ri, n->scope.statements.slice, &ri_resolve_node_);
 
-            case RiNode_Id: {
-                if (!ri_resolve_identifier_(ri, &n, expected_type)) {
-                    return false;
-                }
-            } break;
+            case RiNode_Id:
+                return ri_resolve_identifier_(ri, node);
 
-            case RiNode_Spec_Type_Func: {
-                if (!ri_resolve_func_args_(ri, n, &n->spec.type.func.inputs.slice)) {
-                    return false;
-                }
-                // TODO: Limit to 1 output argument?
-                if (!ri_resolve_func_args_(ri, n, &n->spec.type.func.outputs.slice)) {
-                    return false;
-                }
-            } break;
+            case RiNode_Spec_Type_Func:
+                return (
+                    ri_resolve_func_args_(ri, n, &n->spec.type.func.inputs.slice) &&
+                    ri_resolve_func_args_(ri, n, &n->spec.type.func.outputs.slice)
+                );
 
+            case RiNode_Value_Const:
             case RiNode_Value_Type:
             case RiNode_Value_Func:
             case RiNode_Value_Var: {
                 // Nothing to do (these come resolved from ri_resolve_identifer_).
-            } break;
-
-            case RiNode_Value_Const_Integer: {
-                if (n->value.spec) {
-                    // Constant is declared.
-                    RI_TODO;
-                } else {
-                    RI_CHECK(n->value.type == NULL);
-                    if (expected_type == NULL) {
-                        ri_error_set_(ri, RiError_UnknownType, n->pos,
-                            "cannot deduce type for integer constant %" PRIu64,
-                            n->value.constant.integer
-                        );
-                        return false;
-                    } else if (ri_is_in(expected_type->kind, RiNode_Spec_Type_Number_Int)) {
-                        n->value.type = expected_type;
-                    } else {
-                        ri_error_set_(ri, RiError_UnknownType, n->pos, "cannot cast integer constant to deduced type %S",
-                            ri->node_meta[expected_type->kind].node->spec.id
-                        );
-                        return false;
-                    }
-                }
-            } break;
-
-            // TODO: Merge with Integer? Seems to differ in little details.
-            case RiNode_Value_Const_Bool: {
-                if (n->value.spec) {
-                    // Constant is declared.
-                    RI_TODO;
-                } else {
-                    RI_CHECK(n->value.type == NULL);
-                    if (expected_type == NULL) {
-                        ri_error_set_(ri, RiError_UnknownType, n->pos,
-                            "cannot deduce type for bool constant %s" PRIu64,
-                            n->value.constant.boolean ? "true" : "false"
-                        );
-                        return false;
-                    } else if (expected_type->kind == RiNode_Spec_Type_Number_Bool) {
-                        n->value.type = expected_type;
-                    } else {
-                        ri_error_set_(ri, RiError_UnknownType, n->pos, "cannot cast boolean constant to deduced type %S",
-                            ri->node_meta[expected_type->kind].node->spec.id
-                        );
-                        return false;
-                    }
-                }
+                return true;
             } break;
 
             case RiNode_Expr_Call: {
-                if (!ri_resolve_node_(ri, &n->call.func, 0)) {
+                if (!ri_resolve_node_(ri, &n->call.func)) {
                     return false;
                 }
                 RiNode* callable = n->call.func->value.spec;
                 if (callable->kind == RiNode_Spec_Func) {
-                    if (!ri_resolve_expr_call_func_(ri, &n, 0)) {
+                    if (!ri_resolve_expr_call_func_(ri, &n)) {
                         return false;
                     }
                 } else if (ri_is_in(callable->kind, RiNode_Spec_Type)) {
-                    if (!ri_resolve_expr_call_type_(ri, &n, 0)) {
+                    if (!ri_resolve_expr_call_type_(ri, &n)) {
                         return false;
                     }
                 }
-                // TODO: Here we need to iterate here in order to pass correct type as `expected_type` for type inference.
-                if (!ri_resolve_slice_with_(ri, n->call.arguments.slice, &ri_resolve_node_)) {
-                    return false;
-                }
             } break;
 
-            case RiNode_St_Expr: {
-                if (!ri_resolve_node_(ri, &n->st_expr, 0)) {
-                    return false;
-                }
-            } break;
+            case RiNode_St_Expr:
+                // Statement-level expression won't get any `expected_type`.
+                return ri_resolve_node_(ri, &n->st_expr);
 
-            case RiNode_St_Return: {
+            case RiNode_St_Return:
                 // TODO: Use func's return value type to infer return's argument.
-                if (n->st_return.argument && !ri_resolve_node_(ri, &n->st_return.argument, 0)) {
-                    return false;
+                // TODO: Use the return type as `expected_type` too.
+                if (n->st_return.argument) {
+                    return ri_resolve_node_(ri, &n->st_return.argument);
                 }
-            } break;
+                return true;
 
-            case RiNode_St_If: {
-                if (!ri_resolve_st_if_(ri, &n, 0)) {
-                    return false;
-                }
-            } break;
+            case RiNode_St_If:
+                return ri_resolve_st_if_(ri, &n);
 
-            case RiNode_St_For: {
-                if (!ri_resolve_st_for_(ri, &n, 0)) {
-                    return false;
-                }
-            } break;
+            case RiNode_St_For:
+                return ri_resolve_st_for_(ri, &n);
 
             default: {
                 RI_ABORT("unexpected node");
                 return false;
             }
         }
+
+        *node = n;
+        return true;
     }
-
-    *node = n;
-
-    return true;
 }
 
 RiNode*
@@ -2394,11 +2357,220 @@ ri_resolve(Ri* ri, RiNode* node)
 
     RiNode* it;
     array_each(&ri->pending, &it) {
-        if (!ri_resolve_node_(ri, &it, 0)) {
+        if (!ri_resolve_node_(ri, &it)) {
             return NULL;
         }
     }
     return node;
+}
+
+//
+//
+//
+
+static void
+ri_typecheck_set_(Ri* ri, RiNode* expr, RiNode* type)
+{
+    if (ri_is_in(expr->kind, RiNode_Expr_Binary)) {
+        ri_typecheck_set_(ri, expr->binary.argument0, type);
+        ri_typecheck_set_(ri, expr->binary.argument1, type);
+    } else if (ri_is_in(expr->kind, RiNode_Expr_Unary)) {
+        ri_typecheck_set_(ri, expr->unary.argument, type);
+    } else if (expr->kind == RiNode_Value_Const) {
+        RI_ASSERT(ri_is_in(expr->value.type->kind, RiNode_Spec_Type_Number_None));
+        expr->value.type = type;
+    }
+}
+
+static RiNode*
+ri_typecheck_get_untyped_default_type_(Ri* ri, RiNodeKind untyped)
+{
+    switch (untyped)
+    {
+        case RiNode_Spec_Type_Number_None_Int:
+            return ri->node_meta[RiNode_Spec_Type_Number_Int64].node;
+            break;
+        case RiNode_Spec_Type_Number_None_Real:
+            return ri->node_meta[RiNode_Spec_Type_Number_Float32].node;
+            break;
+    }
+    RI_UNREACHABLE;
+    return NULL;
+}
+
+static RiNode*
+ri_typecheck_retof_(Ri* ri, RiNode* expr)
+{
+    RI_CHECK(expr);
+
+    if (ri_is_in(expr->kind, RiNode_Expr_Binary_Comparison))
+    {
+        // Here we have to check for dominance, but
+        // we'd always return bool. Here we'd need to call `set`
+        // because we want the types to be concrete.
+        RiNode* t0 = ri_typecheck_retof_(ri, expr->binary.argument0);
+        RiNode* t1 = ri_typecheck_retof_(ri, expr->binary.argument1);
+        bool d0 = !ri_is_in(t0->kind, RiNode_Spec_Type_Number_None);
+        bool d1 = !ri_is_in(t1->kind, RiNode_Spec_Type_Number_None);
+        if (t0 == NULL || t1 == NULL) {
+            // Error.
+            return NULL;
+        } else if (t0 == t1) {
+            // Types are the same, so return one.
+            if (d0 == false) {
+                RI_CHECK(d1 == false);
+                // Both are not-dominant, so we'll set their respective defaults.
+                t0 = t1 = ri_typecheck_get_untyped_default_type_(ri, t0->kind);
+                ri_typecheck_set_(ri, expr, t0);
+            }
+        } else {
+            // Types are different, so return the more dominant one.
+            if ((d0 && d1) || (!d0 && !d1)) {
+                // Error: Both types have same dominance, and we
+                // know that they are different now.
+                // TODO: We can probably allow for Int-to-Real cast.
+                ri_error_set_mismatched_types_(ri,
+                    expr->pos, t0, t1, RI_OP_NAMES_[expr->kind]);
+                return NULL;
+            } else if (d0) {
+                // Left it dominant.
+                // Set right to t0?
+                t1 = t0;
+                ri_typecheck_set_(ri, expr->binary.argument1, t0);
+            } else {
+                RI_CHECK(d0 == false && d1 == true);
+                // Right is dominant.
+                t0 = t1;
+                ri_typecheck_set_(ri, expr->binary.argument0, t1);
+            }
+        }
+
+        // We always return bool.
+        return ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
+    }
+    else if (ri_is_in(expr->kind, RiNode_Expr_Binary))
+    {
+        RiNode* t0 = ri_typecheck_retof_(ri, expr->binary.argument0);
+        RiNode* t1 = ri_typecheck_retof_(ri, expr->binary.argument1);
+        if (t0 == NULL || t1 == NULL) {
+            // Error.
+            return NULL;
+        } else if (t0 == t1) {
+            // Types are the same, so return one.
+        } else {
+            // Types are different, so return the more dominant one.
+            bool d0 = !ri_is_in(t0->kind, RiNode_Spec_Type_Number_None);
+            bool d1 = !ri_is_in(t1->kind, RiNode_Spec_Type_Number_None);
+            if ((d0 && d1) || (!d0 && !d1)) {
+                // Error: Both types have same dominance, and we
+                // know that they are different now.
+                // TODO: We can probably allow for Int-to-Real cast.
+                ri_error_set_mismatched_types_(ri,
+                    expr->pos, t0, t1, RI_OP_NAMES_[expr->kind]);
+                return NULL;
+            } else if (d0) {
+                // Left it dominant.
+                // Set right to t0.
+                t1 = t0;
+                ri_typecheck_set_(ri, expr->binary.argument1, t0);
+            } else {
+                RI_CHECK(d0 == false && d1 == true);
+                // Right is dominant.
+                // Set left to t1.
+                t0 = t1;
+                ri_typecheck_set_(ri, expr->binary.argument0, t1);
+            }
+        }
+
+        return t0;
+    } else if (ri_is_in(expr->kind, RiNode_Expr_Unary)) {
+        return ri_typecheck_retof_(ri, expr->unary.argument);
+    } else if (expr->kind == RiNode_Decl && expr->decl.spec->kind == RiNode_Spec_Var) {
+        // var a = <expr>
+        return ri_get_spec_(ri, expr->decl.spec->spec.var.type);
+    } else {
+        switch (expr->kind)
+        {
+            case RiNode_Value_Const:
+            case RiNode_Value_Var:
+                return expr->value.type;
+            case RiNode_Expr_Call:
+                return ri_retof_(ri, expr);
+            default:
+                RI_TODO;
+                break;
+        }
+    }
+
+    return NULL;
+}
+
+bool
+ri_typecheck_node_(Ri* ri, RiNode* node)
+{
+    switch (node->kind)
+    {
+        case RiNode_Module: {
+            return ri_typecheck_node_(ri, node->module.scope);
+        }
+
+        case RiNode_Scope: {
+            RiNode* it;
+            array_each(&node->scope.statements, &it) {
+                if (!ri_typecheck_node_(ri, it)) {
+                    return false;
+                }
+            }
+        } break;
+
+        case RiNode_St_Assign: {
+            RiNode* type0 = ri_typecheck_retof_(ri, node->binary.argument0);
+            RiNode* type1 = ri_typecheck_retof_(ri, node->binary.argument1);
+            if (!type0 || !type1) {
+                return false;
+            }
+            if (type0->kind == RiNode_Spec_Type_Infer) {
+                RI_CHECK(type1->kind != RiNode_Spec_Type_Infer);
+                if (ri_is_in(type1->kind, RiNode_Spec_Type_Number_None)) {
+                    // If right is untyped, set it to default.
+                    type1 = ri_typecheck_get_untyped_default_type_(ri, type1->kind);
+                    ri_typecheck_set_(ri, node->binary.argument1, type1);
+                }
+
+                // Set left type to same type as we now have for right.
+                RiNode* var = node->binary.argument0;
+                RI_CHECK(var->kind == RiNode_Decl);
+                RI_CHECK(var->decl.spec->kind == RiNode_Spec_Var);
+                var->decl.spec->spec.var.type = type1;
+            } else if (type0 != type1) {
+                if (
+                    (
+                        type0->kind == RiNode_Spec_Type_Number_Float64 ||
+                        type0->kind == RiNode_Spec_Type_Number_Float32
+                    )
+                    &&
+                    type1->kind == RiNode_Spec_Type_Number_None_Real
+                ) {
+                    ri_typecheck_set_(ri, node->binary.argument1, type0);
+                } else if (ri_is_in(type0->kind, RiNode_Spec_Type_Number_Int) &&
+                    type1->kind == RiNode_Spec_Type_Number_None_Int
+                ) {
+                    ri_typecheck_set_(ri, node->binary.argument1, type0);
+                } else {
+                    ri_error_set_mismatched_types_(ri, node->pos, type0, type1, "=");
+                    return false;
+                }
+            }
+        } break;
+    }
+
+    return true;
+}
+
+bool
+ri_typecheck(Ri* ri, RiNode* node)
+{
+    return ri_typecheck_node_(ri, node);
 }
 
 //
@@ -2413,8 +2585,10 @@ ri_build(Ri* ri, String stream, String path)
     if (scope) {
         scope = ri_resolve(ri, scope);
         if (scope) {
-            module->module.scope = scope;
-            return module;
+            if (ri_typecheck(ri, scope)) {
+                module->module.scope = scope;
+                return module;
+            }
         }
     }
     return NULL;
@@ -2470,7 +2644,7 @@ ri_dump_block_(RiDump_* D, RiNode* node, const char* block)
 }
 
 static const char* RI_NODEKIND_NAMES_[RiNode_COUNT__] = {
-    [RiNode_Value_Const_Integer] = "const-integer",
+    [RiNode_Value_Const] = "const",
     [RiNode_Expr_Cast] = "expr-cast",
     [RiNode_Expr_Unary_Positive] = "expr-positive",
     [RiNode_Expr_Unary_Negative] = "expr-negative",
@@ -2568,6 +2742,14 @@ ri_dump_(RiDump_* D, RiNode* node)
                 riprinter_print(&D->printer, "(id '%S')\n", node->id.name);
             } break;
 
+            case RiNode_Spec_Type_Number_None_Int: {
+                riprinter_print(&D->printer, "(spec-type-untyped-int)\n");
+            } break;
+
+            case RiNode_Spec_Type_Number_None_Real: {
+                riprinter_print(&D->printer, "(spec-type-untyped-real)\n");
+            } break;
+
             case RiNode_Expr_Call: {
                 riprinter_print(&D->printer, "(expr-call\n\t");
                 ri_dump_(D, node->call.func);
@@ -2622,8 +2804,40 @@ ri_dump_(RiDump_* D, RiNode* node)
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
-            case RiNode_Value_Const_Integer: {
-                riprinter_print(&D->printer, "(%s %"PRIu64"\n\t", RI_NODEKIND_NAMES_[node->kind], node->value.constant.integer);
+            case RiNode_Value_Const: {
+                riprinter_print(&D->printer, "(const ");
+                switch (node->value.type->kind) {
+                    case RiNode_Spec_Type_Number_Int8:
+                    case RiNode_Spec_Type_Number_Int16:
+                    case RiNode_Spec_Type_Number_Int32:
+                    case RiNode_Spec_Type_Number_UInt8:
+                    case RiNode_Spec_Type_Number_UInt16:
+                    case RiNode_Spec_Type_Number_UInt32:
+                        riprinter_print(&D->printer, "%d\n\t", node->value.constant.integer);
+                        break;
+
+                    case RiNode_Spec_Type_Number_UInt64:
+                    case RiNode_Spec_Type_Number_None_Int:
+                        riprinter_print(&D->printer, "%"PRIu64"\n\t", node->value.constant.integer);
+                        break;
+                    case RiNode_Spec_Type_Number_Float32:
+                    case RiNode_Spec_Type_Number_Float64:
+                    case RiNode_Spec_Type_Number_None_Real:
+                        riprinter_print(&D->printer, "%f\n\t", node->value.constant.real);
+                        break;
+                    case RiNode_Spec_Type_Number_Bool:
+                        riprinter_print(&D->printer, "%s\n\t",
+                            node->value.constant.boolean ? "true" : "false");
+                        break;
+
+                    case RiNode_Spec_Type_Number_Int64:
+                        riprinter_print(&D->printer, "%"PRIi64"\n\t", node->value.constant.integer);
+                        break;
+
+                    default:
+                        riprinter_print(&D->printer, "UNKNOWN\n\t");
+                        break;
+                }
                 ri_dump_(D, node->value.type);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
@@ -2714,6 +2928,19 @@ ri_init(Ri* ri)
     ri->id_nil         = ri_make_id_(ri, S("nil")).items;
 
     ri->scope = ri_make_scope_(ri, RI_POS_OUTSIDE);
+
+    ri->node_meta[RiNode_Spec_Type_Number_None_Int].node =
+        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Int);
+    ri->node_meta[RiNode_Spec_Type_Number_None_Int].node->spec.id = ri_make_id_(ri, S("untyped-int"));
+
+    ri->node_meta[RiNode_Spec_Type_Number_None_Real].node =
+        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Real);
+    ri->node_meta[RiNode_Spec_Type_Number_None_Real].node->spec.id = ri_make_id_(ri, S("untyped-real"));
+
+    ri->node_meta[RiNode_Spec_Type_Infer].node =
+        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Infer);
+    ri->node_meta[RiNode_Spec_Type_Infer].node->spec.id = ri_make_id_(ri, S("infer"));
+
     #define DECL_TYPE(Name, Type) { \
         String name = ri_make_id_(ri, S(Name)); \
         RiNode* spec = ri_make_spec_type_number_(ri, \

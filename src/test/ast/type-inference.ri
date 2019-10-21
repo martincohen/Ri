@@ -1,6 +1,0 @@
-var a int32;
-
-// Infer from `a`
-var c = a;
-// Defaults to `int32`.
-var d = 1;

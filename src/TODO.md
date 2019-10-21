@@ -64,17 +64,28 @@ See README.md for high-level tasks.
 
 ### AST
 
-- [ ] BUG: When we're resolving `var b bool = 1 || 1` we get: `cannot cast integer constant to deduced type bool` at first `1`.
-    - `||` expects both arguments to be `bool`, but the error seems to be caused by the assignment forcing it's rhs to expect `bool` and the resolution of `||` just inherits that, as the code there is not touching the `expected_type`.
+- [ ] Limit use of `=` for type inference, so we can't do `var a += 1`, which is now legal.
+- [ ] Limit use of `Type_Infer` variables before they are actually declared and assigned.
+    - Is this actual "uninitialized use of variable" protection?
+- [ ] `typecheck` phase:
+    - [x] Constant type inference infrastructure
+    - [ ] Implement `var x = <expr>;` for type inference.
+    - [ ] In `resolve` phase make sure declarations in assignments are processed.
+    - [ ] Allow multiple errors in `typecheck` phase.
+        - `ri_error_add_` will add an error.
+        - Change `ri_error_set_` to `ri_fatal_set_`
+    - [ ] Move type checks to `typecheck` phase.
+        - `ri_resolve_expr_call_type_`
+    - [ ] Type checking for calls.
+- [ ] Text ranges in nodes:
+    - `RiToken` to also hold Range or at least `length`
+    - `RiNode` will contain pos + length caclulated from the token.
 - [x] Integer constants
 - [x] Typed constants
 - [ ] Named typed constants
 - [ ] Real constants
 - [ ] String constants
 - [ ] Initializer constants
-- [ ] Type inference:
-    - [x] Constant type inference infrastructure
-    - [ ] Implement `var x = <expr>;` for type inference.
 
 - [ ] Parsing type spec.
     - Parsing `func (...) (...)` as function type spec.

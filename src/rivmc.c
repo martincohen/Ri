@@ -287,7 +287,7 @@ rivm_compile_expr_(RiVmCompiler* rix, RiNode* ast_expr)
     RI_ASSERT(
         ri_is_in(ast_expr->kind, RiNode_Expr) ||
         ast_expr->kind == RiNode_Value_Var ||
-        ri_is_in(ast_expr->kind, RiNode_Value_Const)
+        ast_expr->kind == RiNode_Value_Const
     );
 
     if (ri_is_in(ast_expr->kind, RiNode_Expr_Binary)) {
@@ -314,7 +314,7 @@ rivm_compile_expr_(RiVmCompiler* rix, RiNode* ast_expr)
             case RiNode_Value_Var:
                 return rivm_get_param_(rix, ast_expr);
 
-            case RiNode_Value_Const_Integer: {
+            case RiNode_Value_Const: {
                 RiVmValueType type = rivm_get_type_from_expr_(rix, ast_expr);
                 switch (type)
                 {
