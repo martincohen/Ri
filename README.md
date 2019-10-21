@@ -113,15 +113,15 @@ The list will grow as I go.
     - [ ] Slices
         - `[]type`
 - [ ] Constants
-    [ ] Untyped constant literal
-        [x] Integer
-        [x] Real
-        [x] Boolean
-        [ ] String
-        [ ] Initializers
-        [ ] Nil
-    [ ] Typed named constants
-    [ ] Untyped named constants
+    - [ ] Untyped constant literal
+        - [x] Integer
+        - [x] Real
+        - [x] Boolean
+        - [ ] String
+        - [ ] Initializers
+        - [ ] Nil
+    - [ ] Typed named constants
+    - [ ] Untyped named constants
 - [ ] Comments
     - [x] Line comments
     - [ ] Block comments
