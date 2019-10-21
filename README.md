@@ -127,8 +127,15 @@ The list will grow as I go.
     - [ ] Block comments
 - [x] Function declaration
     - [x] `function <name> (<inputs>) (<outputs>) { ... }`
-- [x] Function prototype declaration
+    - [ ] `function <name> (<inputs>) <type-spec>`
+    - [ ] `function <name> (<inputs>)`
+    - [ ] Convenience syntax for function arguments of same type (`a, b int32`)
+- [ ] Function prototype declaration
     - [x] `function <name> (<inputs>) (<outputs>)`
+- [ ] Function type
+    - [ ] `function (<inputs>) (<outputs>)`
+    - [ ] `function (<inputs>) <type-spec>`
+    - [ ] `function (<inputs>)`
 - [x] Call
     - [x] `<name>(<arguments>)`
     - [ ] Type checking.
