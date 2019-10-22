@@ -152,7 +152,17 @@ The list will grow as I go.
     - [x] `for ; <condition>; { ... }`
     - [x] `for ; ; { ... }`
     - [x] `for <condition> { ... }`
+    - [ ] `{ break }`
+    - [ ] `{ continue }`
     - [x] Type checking.
+- [ ] Switch statement
+    - [ ] `switch <pre-st>; <expr> { ... }`
+    - [ ] `case <const>:`
+    - [ ] `default`
+    - [ ] `break` or `fallthrough`?
+- [ ] Goto statement
+    - [ ] `goto <label>`
+    - [ ] `label:`
 - [x] Arithmetic expressions
     - [x] `-a`
     - [x] `+a`

@@ -160,6 +160,8 @@ See README.md for high-level tasks.
 - Interfaces
     - There's a dynamic property to interfaces which requires type knowledge at runtime.
     - https://medium.com/rungo/interfaces-in-go-ab1601159b3a
+    - https://research.swtch.com/interfaces
+    - https://golang.org/doc/effective_go.html#interfaces
 - Multiple return values
     - On C side it's returned as `struct`.
 - Slice

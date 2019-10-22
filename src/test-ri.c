@@ -63,8 +63,13 @@ testri_parse() {
     ri_purge(&ri);
 }
 
+typedef enum TestRiMode {
+    TestRi_Parse,
+    TestRi_Resolve
+} TestRiMode;
+
 void
-testri_file_(const char* name)
+testri_file_(const char* name, TestRiMode mode)
 {
     LOG("'%s': testing", name);
 
@@ -94,7 +99,7 @@ testri_file_(const char* name)
         array_purge(&path_expected);
     }
 
-    if (node != NULL) {
+    if (mode == TestRi_Resolve && node != NULL) {
         node = ri_resolve(&ri, node);
         if (!ri_typecheck(&ri, node)) {
             node = NULL;
@@ -143,34 +148,35 @@ testri_file_(const char* name)
 
 void
 testri_resolve() {
+    testri_file_("parse/switch", TestRi_Parse);
+    // testri_file_("parse/real", TestRi_Parse);
+
     // testri_file_("test1");
 
-    testri_file_("parse-real");
+    // testri_file_("resolve/decl", TestRi_Resolve);
+    // testri_file_("resolve/if", TestRi_Resolve);
+    // testri_file_("resolve/if-condition-error-bool", TestRi_Resolve);
+    // testri_file_("resolve/for", TestRi_Resolve);
+    // testri_file_("resolve/for-condition-error-is-st", TestRi_Resolve);
 
-    // testri_file_("decl");
-    // testri_file_("if");
-    // testri_file_("if-condition-error-bool");
-    // testri_file_("for");
-    // testri_file_("for-condition-error-is-st");
+    // testri_file_("resolve/assignment-infer-error", TestRi_Resolve);
+    // testri_file_("resolve/assignment", TestRi_Resolve);
 
-    // testri_file_("assignment-infer-error");
-    // testri_file_("assignment");
+    // testri_file_("resolve/type-spec", TestRi_Resolve);
+    // testri_file_("resolve/type-inference-const", TestRi_Resolve);
+    // testri_file_("resolve/type-inference-const-binary-left-error", TestRi_Resolve);
+    // testri_file_("resolve/type-inference-const-binary-right-error", TestRi_Resolve);
 
-    // testri_file_("type-spec");
-    // testri_file_("type-inference-const");
-    // testri_file_("type-inference-const-binary-left-error");
-    // testri_file_("type-inference-const-binary-right-error");
+    // testri_file_("resolve/op-arithmetic", TestRi_Resolve);
+    // testri_file_("resolve/op-arithmetic-type-mismatch-error", TestRi_Resolve);
+    // testri_file_("resolve/op-bitwise", TestRi_Resolve);
+    // testri_file_("resolve/op-boolean", TestRi_Resolve);
+    // testri_file_("resolve/op-comparison", TestRi_Resolve);
 
-    // testri_file_("op-arithmetic");
-    // testri_file_("op-arithmetic-type-mismatch-error");
-    // testri_file_("op-bitwise");
-    // testri_file_("op-boolean");
-    // testri_file_("op-comparison");
-
-    // testri_file_("cast-bool");
-    // testri_file_("cast-int-to-bool-error");
-    // testri_file_("cast-float-to-bool-error");
-    // testri_file_("cast-arguments-count-error");
+    // testri_file_("resolve/cast-bool", TestRi_Resolve);
+    // testri_file_("resolve/cast-int-to-bool-error", TestRi_Resolve);
+    // testri_file_("resolve/cast-float-to-bool-error", TestRi_Resolve);
+    // testri_file_("resolve/cast-arguments-count-error", TestRi_Resolve);
 }
 
 void

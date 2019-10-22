@@ -493,6 +493,12 @@ struct RiNode
             RiNode* scope;
         } st_for;
 
+        struct {
+            RiNode* pre;
+            RiNode* condition;
+            RiNode* scope;
+        } st_switch;
+
         RiNode* st_expr;
     };
 };
