@@ -50,6 +50,8 @@ See README.md for high-level tasks.
 - [x] Draft `+` binary operator
 - [x] Draft `if` compile
 
+- [ ] Support for constant types?
+    - Should this be resolved in the AST?
 - [ ] Fix bug in AST (see bellow), then enable `op-binary` tests.
 - [ ] Compile "root" as module-init function.
 - [ ] Draft constant folding
@@ -167,3 +169,52 @@ See README.md for high-level tasks.
 - Slice
     - `[]int`
     - Syntax sugar for `struct { T* items; iptr count; }`
+- Do we want `??` operator?
+    - https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-coalescing-operator
+- Compound math types
+    - I learnt the other week that it's called level 1 BLAS (basic linear algebra system). Level 2 is matrix vector multiplication. Level 3 is matrix matrix multiplication
+    - We'd need a fixed-count slice for this to work.
+
+    - Difference between
+        - static size slice with items allocated on stack
+        - infered-but-static size slice with items allocated on stack
+        - dynamic size
+
+struct T {
+    var items T;
+    const count int64 = 2;
+}
+
+```go
+
+var a []float;
+var b (2)float;
+var c ()float = { ... };
+
+var a []float;
+var b [2]float;
+var c [*]float = { ... };
+
+var a Slice(float);
+var b [2]float;
+b = { 1, 2 };
+var c []float = { ... };
+
+
+// Impossible because `[]type` is slice.
+const a [*]float = {
+    1, 2, 3
+}
+// Type-infered constant.
+const a [] = {
+    1, 2, 3
+}
+
+
+var a, b [2]float32;
+var c = a * b;
+
+type Vector2 [2]float32;
+var a, b Vector2;
+var c = a + b;
+```

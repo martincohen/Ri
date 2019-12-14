@@ -106,6 +106,7 @@ enum RiTokenKind
     RiToken_Dot,
     RiToken_Comma,
     RiToken_Semicolon,
+    RiToken_Colon,
 
     RiToken_Plus,
     RiToken_Minus,
@@ -495,9 +496,13 @@ struct RiNode
 
         struct {
             RiNode* pre;
-            RiNode* condition;
+            RiNode* expr;
             RiNode* scope;
         } st_switch;
+
+        struct {
+            RiNode* expr;
+        } st_switch_case;
 
         RiNode* st_expr;
     };

@@ -1,0 +1,5 @@
+func main() (r int32) {
+	var a int32;
+	a = 1;
+	return a;
+}

@@ -110,7 +110,7 @@ ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
 
     // TODO: Use current file's name/path.
     RI_LOG("error %S:%d:%d: %S", ri->path.slice, pos.row + 1, pos.col + 1, ri->error.message.slice);
-    __debugbreak();
+    // __debugbreak();
 }
 
 static inline void
@@ -321,6 +321,7 @@ next:
         case '}': ++it; token->kind = RiToken_RB; break;
         case ',': ++it; token->kind = RiToken_Comma; break;
         case ';': ++it; token->kind = RiToken_Semicolon; break;
+        case ':': ++it; token->kind = RiToken_Colon; break;
 
         case '~': ++it; token->kind = RiToken_Tilde; break;
 
@@ -988,12 +989,41 @@ ri_make_st_for_(Ri* ri, RiPos pos, RiNode* pre, RiNode* condition, RiNode* post,
 }
 
 static RiNode*
-ri_make_st_switch_(Ri* ri, RiPos pos, RiNode* pre, RiNode* condition, RiNode* scope)
+ri_make_st_switch_(Ri* ri, RiPos pos, RiNode* pre, RiNode* expr, RiNode* scope)
 {
     RiNode* node = ri_make_node_(ri, pos, RiNode_St_Switch);
     node->st_switch.pre = pre;
-    node->st_switch.condition = condition;
+    node->st_switch.expr = expr;
     node->st_switch.scope = scope;
+    return node;
+}
+
+static RiNode*
+ri_make_st_switch_case_(Ri* ri, RiPos pos, RiNode* expr)
+{
+    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Switch_Case);
+    node->st_switch_case.expr = expr;
+    return node;
+}
+
+static RiNode*
+ri_make_st_switch_default_(Ri* ri, RiPos pos)
+{
+    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Switch_Default);
+    return node;
+}
+
+static RiNode*
+ri_make_st_break_(Ri* ri, RiPos pos)
+{
+    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Break);
+    return node;
+}
+
+static RiNode*
+ri_make_st_continue_(Ri* ri, RiPos pos)
+{
+    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Continue);
     return node;
 }
 
@@ -1319,7 +1349,7 @@ ri_parse_expr_(Ri* ri)
 //
 
 static RiNode* ri_parse_decl_(Ri* ri);
-static RiNode* ri_parse_scope_(Ri* ri, RiTokenKind end);
+static RiNode* ri_parse_scope_(Ri* ri, RiTokenKind end, RiNodeKind scope_kind);
 static RiNode* ri_parse_spec_partial_func_type_(Ri* ri, RiPos pos);
 
 static RiNode*
@@ -1386,6 +1416,8 @@ ri_parse_decl_type_func_arg_(Ri* ri)
     // <id> <type-spec>
     // type-spec: <id> | _ | function(...)(...) | struct {...} ...
 
+    // TODO: Implement unnamed output arguments `func main() (int32)`.
+    // TODO: Implement naked unnamed output arguments `func main() int32`.
     // TODO: Implement short syntax for arguments of same type `function (a, b int32)`.
     // TODO: Implement `...int32` for variable arity.
 
@@ -1411,24 +1443,22 @@ ri_parse_decl_type_func_arg_list_(Ri* ri, RiNodeArray* list)
         return false;
     }
 
-    if (ri->token.kind != RiToken_RP)
+    RiNode* decl_arg;
+    while (ri->token.kind != RiToken_RP)
     {
-        RiNode* decl_arg;
-        while (ri->token.kind != RiToken_RP)
-        {
-            decl_arg = ri_parse_decl_type_func_arg_(ri);
-            if (!decl_arg) {
-                return false;
-            }
-            array_push(list, decl_arg);
-            if (ri_lex_next_if_(ri, RiToken_Comma) == RiLexNextIf_Error) {
-                return false;
-            }
+        decl_arg = ri_parse_decl_type_func_arg_(ri);
+        if (!decl_arg) {
+            return false;
         }
-        if (!ri_lex_next_(ri)) {
+        array_push(list, decl_arg);
+        if (ri_lex_next_if_(ri, RiToken_Comma) == RiLexNextIf_Error) {
             return false;
         }
     }
+    if (!ri_lex_next_(ri)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -1474,7 +1504,7 @@ ri_parse_spec_partial_func_(Ri* ri, RiPos pos, String id)
     switch (ri_lex_next_if_(ri, RiToken_LB))
     {
         case RiLexNextIf_Match: {
-            scope_body = ri_parse_scope_(ri, RiToken_RB);
+            scope_body = ri_parse_scope_(ri, RiToken_RB, RiNode_Spec_Func);
             if (!scope_body) {
                 return NULL;
             }
@@ -1565,7 +1595,7 @@ ri_parse_decl_(Ri* ri)
 // Statements parser.
 //
 
-static RiNode* ri_parse_st_(Ri* ri);
+static RiNode* ri_parse_st_(Ri* ri, RiNodeKind scope_kind);
 static RiNode* ri_parse_st_simple_(Ri* ri);
 
 static RiNode*
@@ -1670,7 +1700,7 @@ ri_parse_st_if_(Ri* ri)
     }
 
     RiNode* scope_else = NULL;
-    RiNode* scope_then = ri_parse_scope_(ri, RiToken_RB);
+    RiNode* scope_then = ri_parse_scope_(ri, RiToken_RB, RiNode_St_If);
     if (!scope_then) {
         return NULL;
     }
@@ -1689,7 +1719,7 @@ ri_parse_st_if_(Ri* ri)
                 if (!ri_lex_expect_token_(ri, RiToken_LB)) {
                     return NULL;
                 }
-                scope_else = ri_parse_scope_(ri, RiToken_RB);
+                scope_else = ri_parse_scope_(ri, RiToken_RB, RiNode_St_If);
                 if (!scope_else) {
                     return NULL;
                 }
@@ -1785,7 +1815,7 @@ skip:;
     }
 
 
-    scope_block = ri_parse_scope_(ri, RiToken_RB);
+    scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_St_For);
     if (!scope_block) {
         return NULL;
     }
@@ -1854,7 +1884,7 @@ skip:;
         return NULL;
     }
 
-    RiNode* scope_block = ri_parse_scope_(ri, RiToken_RB);
+    RiNode* scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_St_Switch);
     if (!scope_block) {
         return NULL;
     }
@@ -1865,6 +1895,44 @@ skip:;
     ri->scope = scope->owner;
 
     RiNode* node = ri_make_st_switch_(ri, pos, pre, condition, scope);
+    return node;
+}
+
+static RiNode*
+ri_parse_st_switch_case_(Ri* ri)
+{
+    ri_error_check_(ri);
+
+    RiPos pos = ri->token.pos;
+    RI_CHECK(ri->token.kind == RiToken_Keyword_Case);
+    if (!ri_lex_next_(ri)) {
+        return NULL;
+    }
+
+    RiNode* expr = ri_parse_expr_(ri);
+    if (!ri_lex_expect_token_(ri, RiToken_Colon)) {
+        return NULL;
+    }
+
+    RiNode* node = ri_make_st_switch_case_(ri, pos, expr);
+    return node;
+}
+
+static RiNode*
+ri_parse_st_switch_default_(Ri* ri)
+{
+    ri_error_check_(ri);
+
+    RiPos pos = ri->token.pos;
+    RI_CHECK(ri->token.kind == RiToken_Keyword_Default);
+    if (!ri_lex_next_(ri)) {
+        return NULL;
+    }
+    if (!ri_lex_expect_token_(ri, RiToken_Colon)) {
+        return NULL;
+    }
+
+    RiNode* node = ri_make_st_switch_default_(ri, pos);
     return node;
 }
 
@@ -1913,7 +1981,7 @@ ri_parse_st_simple_(Ri* ri)
 }
 
 static RiNode*
-ri_parse_st_(Ri* ri)
+ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
 {
     ri_error_check_(ri);
 
@@ -1951,6 +2019,54 @@ ri_parse_st_(Ri* ri)
             node = ri_parse_st_switch_(ri);
             break;
 
+        case RiToken_Keyword_Case:
+            if (scope_kind != RiNode_St_Switch) {
+                ri_error_set_unexpected_token_(ri, &ri->token);
+                return NULL;
+            }
+            node = ri_parse_st_switch_case_(ri);
+            break;
+
+        case RiToken_Keyword_Default:
+            if (scope_kind != RiNode_St_Switch) {
+                ri_error_set_unexpected_token_(ri, &ri->token);
+                return NULL;
+            }
+            node = ri_parse_st_switch_default_(ri);
+            break;
+
+        case RiToken_Keyword_Break:
+            if (scope_kind != RiNode_St_Switch && scope_kind != RiNode_St_For) {
+                ri_error_set_unexpected_token_(ri, &ri->token);
+                return NULL;
+            }
+            RiPos pos = ri->token.pos;
+            if (ri_lex_next_(ri)) {
+                node = ri_make_st_break_(ri, pos);
+                if (ri_lex_expect_token_(ri, RiToken_Semicolon)) {
+                    break;
+                }
+            }
+            return NULL;
+
+        // TODO: Merge with `break`?
+        // TODO: Continue/break is allowed if one of the parents is switch or for.
+        // - We can do this with counted allow_break++, allow_continue++.
+        // - We will also need to assign break and continue with the correct parent.
+        case RiToken_Keyword_Continue: {
+            if (scope_kind != RiNode_St_For) {
+                ri_error_set_unexpected_token_(ri, &ri->token);
+                return NULL;
+            }
+            RiPos pos = ri->token.pos;
+            if (ri_lex_next_(ri)) {
+                node = ri_make_st_continue_(ri, pos);
+                if (ri_lex_expect_token_(ri, RiToken_Semicolon)) {
+                    break;
+                }
+            }
+        } return NULL;
+
         default:
             node = ri_parse_st_simple_(ri);
             if (!node || !ri_lex_expect_token_(ri, RiToken_Semicolon)) {
@@ -1959,17 +2075,17 @@ ri_parse_st_(Ri* ri)
             break;
     }
 
-    RI_CHECK(node);
+    // RI_CHECK(node);
     return node;
 }
 
 static RiNode*
-ri_parse_scope_(Ri* ri, RiTokenKind end)
+ri_parse_scope_(Ri* ri, RiTokenKind end, RiNodeKind scope_kind)
 {
     RiNode* scope = ri_make_scope_(ri, ri->token.pos);
     ri->scope = scope;
     while (ri->token.kind != end) {
-        RiNode* statement = ri_parse_st_(ri);
+        RiNode* statement = ri_parse_st_(ri, scope_kind);
         if (statement == NULL) {
             return NULL;
         }
@@ -1997,7 +2113,8 @@ ri_parse(Ri* ri, String stream, String path)
         return NULL;
     }
 
-    RiNode* block = ri_parse_scope_(ri, RiToken_End);
+    // TODO: Block scope kind.
+    RiNode* block = ri_parse_scope_(ri, RiToken_End, RiNode_Unknown);
 
     return block;
 }
@@ -2573,12 +2690,14 @@ ri_typecheck_retof_(Ri* ri, RiNode* expr)
         // var a = <expr>
         return ri_get_spec_(ri, expr->decl.spec->spec.var.type);
     } else {
+        // TODO: Is this actually the same logic as calling ri_retof_?
         switch (expr->kind)
         {
             case RiNode_Value_Const:
             case RiNode_Value_Var:
                 return expr->value.type;
             case RiNode_Expr_Call:
+            case RiNode_Expr_Cast:
                 return ri_retof_(ri, expr);
             default:
                 RI_TODO;
@@ -2883,9 +3002,27 @@ ri_dump_(RiDump_* D, RiNode* node)
             case RiNode_St_Switch: {
                 riprinter_print(&D->printer, ("(st-switch\n\t"));
                 ri_dump_block_(D, node->st_switch.pre, "pre");
-                ri_dump_block_(D, node->st_switch.condition, "condition");
+                ri_dump_block_(D, node->st_switch.expr, "expr");
                 ri_dump_(D, node->st_switch.scope);
                 riprinter_print(&D->printer, "\b)\n");
+            } break;
+
+            case RiNode_St_Switch_Case: {
+                riprinter_print(&D->printer, ("(st-switch-case\n\t"));
+                ri_dump_(D, node->st_switch_case.expr);
+                riprinter_print(&D->printer, "\b)\n");
+            } break;
+
+            case RiNode_St_Switch_Default: {
+                riprinter_print(&D->printer, ("(st-switch-default)\n"));
+            } break;
+
+            case RiNode_St_Break: {
+                riprinter_print(&D->printer, ("(st-break)\n"));
+            } break;
+
+            case RiNode_St_Continue: {
+                riprinter_print(&D->printer, ("(st-continue)\n"));
             } break;
 
             case RiNode_Value_Func:

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "ri.h"
-
-typedef struct RiVmCompiler RiVmCompiler;
-typedef struct RiVmValue RiVmValue;
+typedef union RiVmValue RiVmValue;
 typedef enum RiVmValueType RiVmValueType;
 typedef enum RiVmOp RiVmOp;
 typedef struct RiVmInst RiVmInst;
@@ -35,13 +32,15 @@ union RiVmValue {
 
 enum RiVmOp
 {
-    #define GROUP_START(Name) RiVmOp_ ## Name ## _FIRST__,
-    #define GROUP_END(Name) RiVmOp_ ## Name ## _LAST__,
-    #define INST(Name, S) RiVmOp_ ## Name,
-        #include "rivmc-op.h"
-    #undef INST
-    #undef GROUP_END
-    #undef GROUP_START
+    #define RIVM_GROUP_START(Name) RiVmOp_ ## Name ## _FIRST__,
+    #define RIVM_GROUP_END(Name) RiVmOp_ ## Name ## _LAST__,
+    #define RIVM_INST(Name, S) RiVmOp_ ## Name,
+
+        #include "rivm-op.h"
+
+    #undef RIVM_INST
+    #undef RIVM_GROUP_END
+    #undef RIVM_GROUP_START
 };
 
 #define rivm_op_is_in(Op, Group) \
@@ -82,6 +81,9 @@ struct RiVmParam
     };
 };
 
+#define rivm_make_param(Kind, ...) \
+    (RiVmParam){ .kind = RiVmParam_ ## Kind, __VA_ARGS__ }
+
 struct RiVmInst
 {
     RiVmOp op;
@@ -107,29 +109,13 @@ typedef ArrayWithSlice(RiVmFuncSlice) RiVmFuncArray;
 
 struct RiVmModule
 {
-    RiVmFuncSlice func;
-};
-
-//
-//
-//
-
-struct RiVmCompiler
-{
-    Ri* ri;
     Arena arena;
     RiVmFuncArray func;
-
-    RiVmInstArray code;
-    uint32_t slot_next;
-    Array(uint32_t) slot_pool;
-    Array(uint32_t) labels;
-
-    RiNode* ast_func;
 };
 
-void rivm_init(RiVmCompiler* rix, Ri* ri);
-void rivm_purge(RiVmCompiler* rix);
-RiVmModule* rivm_compile(RiVmCompiler* rix, RiNode* ast_module);
-void rivm_dump_module(RiVmCompiler* rix, RiVmModule* module, CharArray* out);
-void rivm_dump_func(RiVmCompiler* rix, RiVmFunc* func, CharArray* out);
+void rivm_module_init(RiVmModule* module);
+void rivm_module_purge(RiVmModule* module);
+
+uint32_t rivm_module_emit(RiVmModule* module, const RiVmInst inst);
+
+RiVmFunc* rivm_module_push_func(RiVmModule* module, RiVmInstSlice code);

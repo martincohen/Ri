@@ -1,43 +1,105 @@
-(scope 12
+(scope 27
   (decl
-    (decl-var 'x'
-      (type int32)
+    (spec-var 'x'
+      (value-type
+        (spec-type-number 'int32')
+      )
     )
   )
   (code
-    (ref 'x')
+    (decl
+      (spec-var 'x'
+        (value-type
+          (spec-type-number 'int32')
+        )
+      )
+    )
     (st-for
       (pre
         (st-assign
-          (ref 'i')
-          (var 'x')
+          (decl
+            (spec-var 'i'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
         )
       )
       (condition
-        (var 'i')
+        (expr-eq
+          (value-var
+            (spec-var 'i'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (const 0
+            (spec-type-number 'untyped-int')
+          )
+        )
       )
       (post
         (st-assign
-          (var 'i')
+          (value-var
+            (spec-var 'i'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
           (expr-add
-            (var 'i')
-            (var 'x')
+            (value-var
+              (spec-var 'i'
+                (value-type
+                  (spec-type-number 'int32')
+                )
+              )
+            )
+            (value-var
+              (spec-var 'x'
+                (value-type
+                  (spec-type-number 'int32')
+                )
+              )
+            )
           )
         )
       )
-      (scope 16
+      (scope 31
         (decl
-          (decl-var 'i'
-            (type int32)
+          (spec-var 'i'
+            (value-type
+              (spec-type-number 'int32')
+            )
           )
         )
         (code
-          (scope 28
-            (decl)
+          (scope 45
             (code
               (st-assign
-                (var 'x')
-                (var 'i')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'i'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -47,25 +109,50 @@
     (st-for
       (pre
         (st-assign
-          (ref 'i')
-          (var 'x')
+          (decl
+            (spec-var 'i'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
         )
       )
       (condition)
       (post)
-      (scope 33
+      (scope 50
         (decl
-          (decl-var 'i'
-            (type int32)
+          (spec-var 'i'
+            (value-type
+              (spec-type-number 'int32')
+            )
           )
         )
         (code
-          (scope 39
-            (decl)
+          (scope 56
             (code
               (st-assign
-                (var 'x')
-                (var 'i')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'i'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -75,33 +162,76 @@
     (st-for
       (pre
         (st-assign
-          (ref 'i')
-          (var 'x')
+          (decl
+            (spec-var 'i'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
         )
       )
       (condition)
       (post
         (st-assign
-          (var 'i')
+          (value-var
+            (spec-var 'i'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
           (expr-add
-            (var 'i')
-            (var 'x')
+            (value-var
+              (spec-var 'i'
+                (value-type
+                  (spec-type-number 'int32')
+                )
+              )
+            )
+            (value-var
+              (spec-var 'x'
+                (value-type
+                  (spec-type-number 'int32')
+                )
+              )
+            )
           )
         )
       )
-      (scope 44
+      (scope 61
         (decl
-          (decl-var 'i'
-            (type int32)
+          (spec-var 'i'
+            (value-type
+              (spec-type-number 'int32')
+            )
           )
         )
         (code
-          (scope 55
-            (decl)
+          (scope 72
             (code
               (st-assign
-                (var 'x')
-                (var 'i')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'i'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -113,18 +243,34 @@
       (condition)
       (post
         (st-expr
-          (var 'x')
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
         )
       )
-      (scope 60
-        (decl)
+      (scope 77
         (code
-          (scope 63
-            (decl)
+          (scope 80
             (code
               (st-assign
-                (var 'x')
-                (var 'x')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -134,26 +280,65 @@
     (st-for
       (pre)
       (condition
-        (var 'x')
+        (expr-eq
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (const 1
+            (spec-type-number 'untyped-int')
+          )
+        )
       )
       (post
         (st-assign
-          (var 'x')
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
           (expr-add
-            (var 'x')
-            (var 'x')
+            (value-var
+              (spec-var 'x'
+                (value-type
+                  (spec-type-number 'int32')
+                )
+              )
+            )
+            (value-var
+              (spec-var 'x'
+                (value-type
+                  (spec-type-number 'int32')
+                )
+              )
+            )
           )
         )
       )
-      (scope 68
-        (decl)
+      (scope 85
         (code
-          (scope 75
-            (decl)
+          (scope 94
             (code
               (st-assign
-                (var 'x')
-                (var 'x')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -163,18 +348,39 @@
     (st-for
       (pre)
       (condition
-        (var 'x')
+        (expr-eq
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (const 1
+            (spec-type-number 'untyped-int')
+          )
+        )
       )
       (post)
-      (scope 80
-        (decl)
+      (scope 99
         (code
-          (scope 82
-            (decl)
+          (scope 103
             (code
               (st-assign
-                (var 'x')
-                (var 'x')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -185,15 +391,25 @@
       (pre)
       (condition)
       (post)
-      (scope 87
-        (decl)
+      (scope 108
         (code
-          (scope 88
-            (decl)
+          (scope 109
             (code
               (st-assign
-                (var 'x')
-                (var 'x')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -203,20 +419,39 @@
     (st-for
       (pre)
       (condition
-        (st-expr
-          (var 'x')
+        (expr-eq
+          (value-var
+            (spec-var 'x'
+              (value-type
+                (spec-type-number 'int32')
+              )
+            )
+          )
+          (const 1
+            (spec-type-number 'untyped-int')
+          )
         )
       )
       (post)
-      (scope 93
-        (decl)
+      (scope 114
         (code
-          (scope 96
-            (decl)
+          (scope 119
             (code
               (st-assign
-                (var 'x')
-                (var 'x')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -227,15 +462,25 @@
       (pre)
       (condition)
       (post)
-      (scope 101
-        (decl)
+      (scope 124
         (code
-          (scope 102
-            (decl)
+          (scope 125
             (code
               (st-assign
-                (var 'x')
-                (var 'x')
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
+                (value-var
+                  (spec-var 'x'
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
+                  )
+                )
               )
             )
           )
@@ -243,6 +488,4 @@
       )
     )
   )
-)
-
 )

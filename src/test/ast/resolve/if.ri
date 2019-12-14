@@ -1,5 +1,5 @@
-var a int32;
-var b int32;
+var a bool;
+var b bool;
 
 if var x int32; a == b {
 	x = a;
