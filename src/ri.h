@@ -14,7 +14,7 @@ typedef struct RiPos RiPos;
 typedef struct RiError RiError;
 typedef struct RiStream RiStream;
 typedef struct RiToken RiToken;
-typedef struct RiLiteral RiLiteral;
+typedef union RiLiteral RiLiteral;
 typedef struct RiNode RiNode;
 typedef struct RiNodeMeta RiNodeMeta;
 typedef struct RiScope RiScope;
@@ -367,7 +367,7 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
 #define ri_is_expr_like(NodeKind) \
     (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Const))
 
-struct RiLiteral {
+union RiLiteral {
     uint64_t integer;
     double real;
     String string;

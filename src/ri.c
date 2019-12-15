@@ -2377,6 +2377,8 @@ static RI_RESOLVE_F_(ri_resolve_identifier_)
         scope = scope->owner;
     }
 
+    RI_CHECK(decl->owner == scope);
+
     if (decl == NULL) {
         ri_error_set_(ri, RiError_NotDeclared, id->pos, "%S was not declared", id->id.name);
         return false;
@@ -2391,35 +2393,9 @@ static RI_RESOLVE_F_(ri_resolve_identifier_)
     }
     else if (decl->decl.state != RiDecl_Resolved)
     {
-        decl->decl.state = RiDecl_Resolving;
-
-        if (ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type)) {
-            if (ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type_Number)) {
-                // Nothing to do.
-            } else {
-                // TODO: Here we'll deal with compound types.
-                RI_TODO;
-            }
-        } else {
-            switch (decl->decl.spec->kind)
-            {
-                case RiNode_Spec_Func:
-                    if (!ri_resolve_node_(ri, &decl->decl.spec->spec.func.type)) {
-                        return false;
-                    }
-                    array_push(&ri->pending, decl->decl.spec->spec.func.scope);
-                    break;
-
-                case RiNode_Spec_Var:
-                    if (!ri_resolve_node_(ri, &decl->decl.spec->spec.var.type)) {
-                        return false;
-                    }
-                    break;
-            }
+        if (!ri_resolve_node_(ri, &decl)) {
+            return false;
         }
-
-        decl->decl.state = RiDecl_Resolved;
-        array_push(&scope->scope.decl, decl);
     } else {
         RI_CHECK(decl->decl.state == RiDecl_Resolved);
     }
@@ -2466,11 +2442,28 @@ RI_RESOLVE_F_(ri_resolve_node_)
 {
     RiNode* n = *node;
 
-    if (n->kind == RiNode_Decl) {
+    if (n->kind == RiNode_Decl)
+    {
+        // TODO: 1. Move out to ri_resolve_decl_().
+        // TODO: 2. Here only resolve variables and functions if we're in root scope.
+
+        RI_CHECK(n->decl.state == RiDecl_Unresolved);
+        n->decl.state = RiDecl_Resolving;
+
         switch (n->decl.spec->kind) {
+            case RiNode_Spec_Func:
+                if (!ri_resolve_node_(ri, &n->decl.spec)) {
+                    return false;
+                }
+                break;
             case RiNode_Spec_Var:
-                return ri_resolve_node_(ri, &n->decl.spec->spec.var.type);
+                if (!ri_resolve_node_(ri, &n->decl.spec->spec.var.type)) {
+                    return false;
+                }
+                break;
         }
+        n->decl.state = RiDecl_Resolved;
+        array_push(&n->owner->scope.decl, n);
         return true;
     } else if (ri_is_in(n->kind, RiNode_St_Assign)) {
         return ri_resolve_assign_(ri, node);
@@ -2497,6 +2490,13 @@ RI_RESOLVE_F_(ri_resolve_node_)
                     ri_resolve_func_args_(ri, n, &n->spec.type.func.inputs.slice) &&
                     ri_resolve_func_args_(ri, n, &n->spec.type.func.outputs.slice)
                 );
+
+            case RiNode_Spec_Func:
+                if (!ri_resolve_node_(ri, &n->spec.func.type)) {
+                    return false;
+                }
+                array_push(&ri->pending, n->spec.func.scope);
+                return true;
 
             case RiNode_Value_Const:
             case RiNode_Value_Type:
@@ -2725,6 +2725,8 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                 }
             }
         } break;
+
+        // TODO: Visit function declarations.
 
         case RiNode_St_Assign: {
             RiNode* type0 = ri_typecheck_retof_(ri, node->binary.argument0);
