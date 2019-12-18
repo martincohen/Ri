@@ -4,18 +4,28 @@
 RiVmValue
 testrivm_interpreter_exec_file_(const char* name)
 {
+    RiVmModule module;
+    rivm_module_init(&module);
+
     CharArray path_source = {0};
     chararray_push_f(&path_source, "./src/test/vmi/%s.ri", name);
     array_zero_term(&path_source);
 
-    RiVmModule module;
-    rivm_module_init(&module);
     rivm_compile_file(path_source.slice, &module);
     
-    RiVmValue value = rivm_exec(array_at(&module.func, 0), NULL, 0);
+    RiVmExec context;
+    rivm_exec_init(&context);
+    RiVmValue args[] = { 0 };
+    RiVmValue value = rivm_exec(
+        &context,
+        array_at(&module.func, 0),
+        args,
+        COUNTOF(args)
+    );
+    rivm_exec_purge(&context);
     
-    rivm_module_purge(&module);
     array_purge(&path_source);
+    rivm_module_purge(&module);
 
     return value;
 }

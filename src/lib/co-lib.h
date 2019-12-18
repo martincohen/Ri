@@ -432,7 +432,6 @@ Range;
             (It) < (Slice)->count && slice_at(Slice, (It)) != Needle; \
             (It) = (It) + 1)                                          \
             ;                                                         \
-                                                                      \
         if ((It) == (Slice)->count)                                   \
         {                                                             \
             (It) = -1;                                                \

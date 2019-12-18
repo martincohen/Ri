@@ -3,6 +3,9 @@ RIVM_INST(None, "none")
 RIVM_INST(Nop, "nop")
 RIVM_INST(Ret, "ret")
 
+RIVM_INST(Enter, "enter")
+RIVM_INST(Leave, "leave")
+
 // Assign(A = B)
 RIVM_INST(Assign, "assign")
 // Store(Memory[A + B] = C)
@@ -11,20 +14,20 @@ RIVM_INST(Store, "store")
 // Load(C = Memory[A + B])
 // Loads sizeof(B) bytes from memory address A + C.
 RIVM_INST(Load, "load")
+// A = AddrOf(B)
+RIVM_INST(AddrOf, "addr-of")
 
-// Push(A)
-// Pushes A to the arguments stack.
-RIVM_INST(Push, "push")
-// PopN(A)
+// Arg(Value)
+// Pushes Value to the stack.
+RIVM_INST(ArgPush, "arg-push")
+// PopN(Count)
 // Pops A count of arguments.
-RIVM_INST(PopN, "pop-n")
+RIVM_INST(ArgPopN, "arg-pop-n")
 
 // A = Call(Func B)
 // Calls function B and sets result to A.
 // If A.Type == None, result is ignored.
 RIVM_INST(Call, "call")
-// A = CallAddr(Addr B)
-RIVM_INST(CallAddr, "call-addr")
 
 // (goto A)
 RIVM_INST(GoTo, "goto")

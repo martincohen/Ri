@@ -1,5 +1,8 @@
 #pragma once
 
+#include <co-lib.h>
+#include "ri.h"
+
 typedef union RiVmValue RiVmValue;
 typedef enum RiVmValueType RiVmValueType;
 typedef enum RiVmOp RiVmOp;
@@ -10,7 +13,8 @@ typedef struct RiVmParam RiVmParam;
 typedef struct RiVmFunc RiVmFunc;
 typedef struct RiVmModule RiVmModule;
 
-enum RiVmValueType {
+enum RiVmValueType
+{
     RiVmValue_None,
     RiVmValue_I32,
     RiVmValue_I64,
@@ -21,14 +25,21 @@ enum RiVmValueType {
     RiVmValue_COUNT__
 };
 
-union RiVmValue {
+union RiVmValue
+{
     int64_t i64;
     uint64_t u64;
+    // An alternative to u64.
+    void* ptr;
+
     int32_t i32;
     uint32_t u32;
+
     float f32;
     double f64;
 };
+
+typedef Slice(RiVmValue) RiVmValueSlice;
 
 enum RiVmOp
 {
@@ -84,6 +95,10 @@ struct RiVmParam
 #define rivm_make_param(Kind, ...) \
     (RiVmParam){ .kind = RiVmParam_ ## Kind, __VA_ARGS__ }
 
+//
+//
+//
+
 struct RiVmInst
 {
     RiVmOp op;
@@ -95,9 +110,15 @@ struct RiVmInst
 typedef Slice(RiVmInst) RiVmInstSlice;
 typedef ArrayWithSlice(RiVmInstSlice) RiVmInstArray;
 
+//
+//
+//
+
 struct RiVmFunc
 {
     RiVmInstSlice code;
+    int debug_inputs_count;
+    int debug_outputs_count;
 };
 
 typedef Slice(RiVmFunc*) RiVmFuncSlice;

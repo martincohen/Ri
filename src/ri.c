@@ -689,19 +689,29 @@ ri_retof_(Ri* ri, RiNode* node)
             //     return ri->node_meta[RiNode_Spec_Type_Number_Float64].node;
             case RiNode_Expr_Cast:
                 return array_at(&node->call.arguments, 0);
-            case RiNode_Expr_Call:
-                // if (ri_is_op_function(node->call.callable)) {
-                //     return node->call.callable->function.op.ret;
-                // } else if (ri_is_rt_function(node->call.callable)) {
-                //     return node->call.callable->function.type->type.function.ret;
-                // }
+            case RiNode_Expr_Call: {
                 RI_CHECK(node->call.func);
-                // RI_CHECK(node->call.func->kind == RiNode_Func);
-                // RI_CHECK(node->call.func->decl.func.type);
-                // RI_CHECK(node->call.func->decl.func.type->kind == RiNode_Spec_Type_Func);
-                // RI_CHECK(node->call.func->decl.func.type->type.func.outputs.count == 1);
-                // return array_at(&node->call.func->decl.func.type->type.func.outputs, 0);
-                RI_TODO;
+                RI_CHECK(node->call.func->kind == RiNode_Value_Func);
+                RiNode* func_spec = node->call.func->value.spec;
+                RiNode* func_type = func_spec->spec.func.type;
+                RI_CHECK(func_spec->spec.func.type);
+                RiNodeArray* outputs = &func_type->spec.type.func.outputs;
+                switch (outputs->count)
+                {
+                    case 1: {
+                        RiNode* output = array_at(outputs, 0);
+                        RI_CHECK(output->kind == RiNode_Decl);
+                        RI_CHECK(output->decl.spec->kind == RiNode_Spec_Var);
+                        return ri_get_spec_(ri, output->decl.spec->spec.var.type);
+                    }
+                    case 0:
+                        // TODO: Void type.
+                        RI_TODO;
+                        break;
+                    default:
+                        RI_UNREACHABLE;
+                }
+            } break;
 
             default:
                 if (ri_is_in(node->kind, RiNode_Expr_Unary)) {
@@ -824,6 +834,7 @@ ri_make_spec_var_(Ri* ri, RiPos pos, String id, RiNode* type)
     RiNode* spec = ri_make_node_(ri, pos, RiNode_Spec_Var);
     spec->spec.id = id;
     spec->spec.var.type = type;
+    spec->spec.var.slot = RI_INVALID_SLOT;
     return spec;
 }
 
@@ -857,6 +868,7 @@ ri_make_spec_func_(Ri* ri, RiPos pos, String id, RiNode* type, RiNode* scope)
     node->spec.id = id;
     node->spec.func.type = type;
     node->spec.func.scope = scope;
+    node->spec.func.slot = RI_INVALID_SLOT;
     return node;
 }
 
@@ -2599,18 +2611,18 @@ ri_typecheck_get_untyped_default_type_(Ri* ri, RiNodeKind untyped)
     return NULL;
 }
 
-static RiNode*
-ri_typecheck_retof_(Ri* ri, RiNode* expr)
+RiNode*
+ri_typecheck_node_(Ri* ri, RiNode* node)
 {
-    RI_CHECK(expr);
+    RiNode* type_none = ri->node_meta[RiNode_Spec_Type_None].node;
 
-    if (ri_is_in(expr->kind, RiNode_Expr_Binary_Comparison))
+    if (ri_is_in(node->kind, RiNode_Expr_Binary_Comparison))
     {
         // Here we have to check for dominance, but
         // we'd always return bool. Here we'd need to call `set`
         // because we want the types to be concrete.
-        RiNode* t0 = ri_typecheck_retof_(ri, expr->binary.argument0);
-        RiNode* t1 = ri_typecheck_retof_(ri, expr->binary.argument1);
+        RiNode* t0 = ri_typecheck_node_(ri, node->binary.argument0);
+        RiNode* t1 = ri_typecheck_node_(ri, node->binary.argument1);
         bool d0 = !ri_is_in(t0->kind, RiNode_Spec_Type_Number_None);
         bool d1 = !ri_is_in(t1->kind, RiNode_Spec_Type_Number_None);
         if (t0 == NULL || t1 == NULL) {
@@ -2622,7 +2634,7 @@ ri_typecheck_retof_(Ri* ri, RiNode* expr)
                 RI_CHECK(d1 == false);
                 // Both are not-dominant, so we'll set their respective defaults.
                 t0 = t1 = ri_typecheck_get_untyped_default_type_(ri, t0->kind);
-                ri_typecheck_set_(ri, expr, t0);
+                ri_typecheck_set_(ri, node, t0);
             }
         } else {
             // Types are different, so return the more dominant one.
@@ -2631,28 +2643,28 @@ ri_typecheck_retof_(Ri* ri, RiNode* expr)
                 // know that they are different now.
                 // TODO: We can probably allow for Int-to-Real cast.
                 ri_error_set_mismatched_types_(ri,
-                    expr->pos, t0, t1, RI_OP_NAMES_[expr->kind]);
+                    node->pos, t0, t1, RI_OP_NAMES_[node->kind]);
                 return NULL;
             } else if (d0) {
                 // Left it dominant.
                 // Set right to t0?
                 t1 = t0;
-                ri_typecheck_set_(ri, expr->binary.argument1, t0);
+                ri_typecheck_set_(ri, node->binary.argument1, t0);
             } else {
                 RI_CHECK(d0 == false && d1 == true);
                 // Right is dominant.
                 t0 = t1;
-                ri_typecheck_set_(ri, expr->binary.argument0, t1);
+                ri_typecheck_set_(ri, node->binary.argument0, t1);
             }
         }
 
         // We always return bool.
         return ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
     }
-    else if (ri_is_in(expr->kind, RiNode_Expr_Binary))
+    else if (ri_is_in(node->kind, RiNode_Expr_Binary))
     {
-        RiNode* t0 = ri_typecheck_retof_(ri, expr->binary.argument0);
-        RiNode* t1 = ri_typecheck_retof_(ri, expr->binary.argument1);
+        RiNode* t0 = ri_typecheck_node_(ri, node->binary.argument0);
+        RiNode* t1 = ri_typecheck_node_(ri, node->binary.argument1);
         if (t0 == NULL || t1 == NULL) {
             // Error.
             return NULL;
@@ -2667,109 +2679,112 @@ ri_typecheck_retof_(Ri* ri, RiNode* expr)
                 // know that they are different now.
                 // TODO: We can probably allow for Int-to-Real cast.
                 ri_error_set_mismatched_types_(ri,
-                    expr->pos, t0, t1, RI_OP_NAMES_[expr->kind]);
+                    node->pos, t0, t1, RI_OP_NAMES_[node->kind]);
                 return NULL;
             } else if (d0) {
                 // Left it dominant.
                 // Set right to t0.
                 t1 = t0;
-                ri_typecheck_set_(ri, expr->binary.argument1, t0);
+                ri_typecheck_set_(ri, node->binary.argument1, t0);
             } else {
                 RI_CHECK(d0 == false && d1 == true);
                 // Right is dominant.
                 // Set left to t1.
                 t0 = t1;
-                ri_typecheck_set_(ri, expr->binary.argument0, t1);
+                ri_typecheck_set_(ri, node->binary.argument0, t1);
             }
         }
 
         return t0;
-    } else if (ri_is_in(expr->kind, RiNode_Expr_Unary)) {
-        return ri_typecheck_retof_(ri, expr->unary.argument);
-    } else if (expr->kind == RiNode_Decl && expr->decl.spec->kind == RiNode_Spec_Var) {
-        // var a = <expr>
-        return ri_get_spec_(ri, expr->decl.spec->spec.var.type);
+    } else if (ri_is_in(node->kind, RiNode_Expr_Unary)) {
+        return ri_typecheck_node_(ri, node->unary.argument);
+    } else if (node->kind == RiNode_Decl && node->decl.spec->kind == RiNode_Spec_Var) {
+        // var a = <node>
+        return ri_get_spec_(ri, node->decl.spec->spec.var.type);
     } else {
-        // TODO: Is this actually the same logic as calling ri_retof_?
-        switch (expr->kind)
+        switch (node->kind)
         {
-            case RiNode_Value_Const:
-            case RiNode_Value_Var:
-                return expr->value.type;
-            case RiNode_Expr_Call:
-            case RiNode_Expr_Cast:
-                return ri_retof_(ri, expr);
+            case RiNode_Module: {
+                return ri_typecheck_node_(ri, node->module.scope);
+            }
+
+            case RiNode_Scope: {
+                RiNode* it;
+                array_each(&node->scope.statements, &it) {
+                    if (!ri_typecheck_node_(ri, it)) {
+                        return NULL;
+                    }
+                }
+                return type_none;
+            } break;
+
+            case RiNode_Decl: {
+                switch (node->decl.spec->kind) {
+                    case RiNode_Spec_Func:
+                        if (!ri_typecheck_node_(ri, node->decl.spec->spec.func.scope)) {
+                            return NULL;
+                        }
+                        break;
+                }
+                return type_none;
+            } break;
+
+            case RiNode_St_Return: {
+                if (node->st_return.argument) {
+                    if (!ri_typecheck_node_(ri, node->st_return.argument)) {
+                        return NULL;
+                    }
+                }
+                return type_none;
+            } break;
+
+            case RiNode_St_Assign: {
+                RiNode* type0 = ri_typecheck_node_(ri, node->binary.argument0);
+                RiNode* type1 = ri_typecheck_node_(ri, node->binary.argument1);
+                if (!type0 || !type1) {
+                    return NULL;
+                }
+                if (type0->kind == RiNode_Spec_Type_Infer) {
+                    RI_CHECK(type1->kind != RiNode_Spec_Type_Infer);
+                    if (ri_is_in(type1->kind, RiNode_Spec_Type_Number_None)) {
+                        // If right is untyped, set it to default.
+                        type1 = ri_typecheck_get_untyped_default_type_(ri, type1->kind);
+                        ri_typecheck_set_(ri, node->binary.argument1, type1);
+                    }
+
+                    // Set left type to same type as we now have for right.
+                    RiNode* var = node->binary.argument0;
+                    RI_CHECK(var->kind == RiNode_Decl);
+                    RI_CHECK(var->decl.spec->kind == RiNode_Spec_Var);
+                    var->decl.spec->spec.var.type = type1;
+                } else if (type0 != type1) {
+                    if (
+                        (
+                            type0->kind == RiNode_Spec_Type_Number_Float64 ||
+                            type0->kind == RiNode_Spec_Type_Number_Float32
+                        )
+                        &&
+                        type1->kind == RiNode_Spec_Type_Number_None_Real
+                    ) {
+                        ri_typecheck_set_(ri, node->binary.argument1, type0);
+                    } else if (ri_is_in(type0->kind, RiNode_Spec_Type_Number_Int) &&
+                        type1->kind == RiNode_Spec_Type_Number_None_Int
+                    ) {
+                        ri_typecheck_set_(ri, node->binary.argument1, type0);
+                    } else {
+                        ri_error_set_mismatched_types_(ri, node->pos, type0, type1, "=");
+                        return NULL;
+                    }
+                }
+                return type_none;
+            } break;
+
             default:
-                RI_TODO;
-                break;
+                return ri_retof_(ri, node);
         }
     }
 
     return NULL;
-}
-
-bool
-ri_typecheck_node_(Ri* ri, RiNode* node)
-{
-    switch (node->kind)
-    {
-        case RiNode_Module: {
-            return ri_typecheck_node_(ri, node->module.scope);
-        }
-
-        case RiNode_Scope: {
-            RiNode* it;
-            array_each(&node->scope.statements, &it) {
-                if (!ri_typecheck_node_(ri, it)) {
-                    return false;
-                }
-            }
-        } break;
-
-        // TODO: Visit function declarations.
-
-        case RiNode_St_Assign: {
-            RiNode* type0 = ri_typecheck_retof_(ri, node->binary.argument0);
-            RiNode* type1 = ri_typecheck_retof_(ri, node->binary.argument1);
-            if (!type0 || !type1) {
-                return false;
-            }
-            if (type0->kind == RiNode_Spec_Type_Infer) {
-                RI_CHECK(type1->kind != RiNode_Spec_Type_Infer);
-                if (ri_is_in(type1->kind, RiNode_Spec_Type_Number_None)) {
-                    // If right is untyped, set it to default.
-                    type1 = ri_typecheck_get_untyped_default_type_(ri, type1->kind);
-                    ri_typecheck_set_(ri, node->binary.argument1, type1);
-                }
-
-                // Set left type to same type as we now have for right.
-                RiNode* var = node->binary.argument0;
-                RI_CHECK(var->kind == RiNode_Decl);
-                RI_CHECK(var->decl.spec->kind == RiNode_Spec_Var);
-                var->decl.spec->spec.var.type = type1;
-            } else if (type0 != type1) {
-                if (
-                    (
-                        type0->kind == RiNode_Spec_Type_Number_Float64 ||
-                        type0->kind == RiNode_Spec_Type_Number_Float32
-                    )
-                    &&
-                    type1->kind == RiNode_Spec_Type_Number_None_Real
-                ) {
-                    ri_typecheck_set_(ri, node->binary.argument1, type0);
-                } else if (ri_is_in(type0->kind, RiNode_Spec_Type_Number_Int) &&
-                    type1->kind == RiNode_Spec_Type_Number_None_Int
-                ) {
-                    ri_typecheck_set_(ri, node->binary.argument1, type0);
-                } else {
-                    ri_error_set_mismatched_types_(ri, node->pos, type0, type1, "=");
-                    return false;
-                }
-            }
-        } break;
-    }
-
-    return true;
 }
 
 bool
@@ -2917,6 +2932,12 @@ ri_dump_(RiDump_* D, RiNode* node)
         RiNode* it;
         switch (node->kind)
         {
+            case RiNode_Module: {
+                riprinter_print(&D->printer, "(module\n\t");
+                ri_dump_(D, node->module.scope);
+                riprinter_print(&D->printer, "\b)\n");
+            } break;
+
             case RiNode_Scope: {
                 riprinter_print(&D->printer, "(scope %d\n\t", node->index);
 
@@ -3159,6 +3180,10 @@ ri_init(Ri* ri)
     ri->id_nil         = ri_make_id_(ri, S("nil")).items;
 
     ri->scope = ri_make_scope_(ri, RI_POS_OUTSIDE);
+
+    ri->node_meta[RiNode_Spec_Type_None].node =
+        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_None);
+    ri->node_meta[RiNode_Spec_Type_None].node->spec.id = ri_make_id_(ri, S("none"));
 
     ri->node_meta[RiNode_Spec_Type_Number_None_Int].node =
         ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Int);

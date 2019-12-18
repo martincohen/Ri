@@ -18,6 +18,8 @@ struct RiVmCompiler
 
     uint32_t slot_next;
     Array(uint32_t) slot_pool;
+    Array(RiVmParam) slot;
+
     Array(uint32_t) labels;
 
     RiNode* ast_func;

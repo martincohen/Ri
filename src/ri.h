@@ -25,6 +25,8 @@ typedef enum RiNodeKind RiNodeKind;
 typedef enum RiDeclState RiDeclState;
 typedef enum RiTypeCompleteness RiTypeCompleteness;
 
+#define RI_INVALID_SLOT (-1)
+
 //
 //
 //
@@ -226,6 +228,8 @@ enum RiNodeKind
         RiNode_Spec_Var,
         RiNode_Spec_Func,
         RiNode_Spec_Type_FIRST__,
+            // Used to denote a node that returns void (like statements).
+            RiNode_Spec_Type_None,
             // Used with `var a = 1` to set a's type to Infer.
             RiNode_Spec_Type_Infer,
             RiNode_Spec_Type_Func,
@@ -407,12 +411,15 @@ struct RiNode
                 struct {
                     RiNode* type;
                     RiNode* scope;
+                    // Used by compiler.
+                    // RI_INVALID_SLOT by default.
+                    uint32_t slot;
                 } func;
 
                 struct {
                     RiNode* type;
                     // Used by compiler.
-                    // TODO: Make extensible by a custom type.
+                    // RI_INVALID_SLOT by default.
                     uint32_t slot;
                 } var;
 
@@ -458,6 +465,7 @@ struct RiNode
             RiNodeArray arguments;
         } call;
 
+        // A constant or reference to a spec used in expressions (var, func, type,...)
         struct {
             RiNode* spec;
             RiNode* type;
