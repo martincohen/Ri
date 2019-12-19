@@ -12,23 +12,20 @@ See README.md for high-level tasks.
 - [x] Draft `+` binary operator
 - [x] Draft `if` compile
 - [x] Support for constant types? (resolved in AST)
+- [x] Draft calls
 
--
+- [ ] Merge `call` and `arg-pop-n`.
 - [ ] Fix bug in AST (see bellow), then enable `op-binary` tests.
 - [ ] Compile "root" as module-init function.
 - [ ] Draft constant folding
-- [ ] Draft calls
-    - `Push <value>`
-    - `Push <value>`
-    - `Push <value>`
-    - `Call <func>`
-    - `Drop <count>`
 - [ ] Draft VM execution
 - [ ] Draft x64 compilation
 
 ### AST
 
-- [ ] Ignore named return values.
+- [x] Ignore named return values.
+
+- [ ] Check for compatible types when casting consts.
 - [ ] If the function doesn't return anything, `return` should have no arguments.
 - [ ] Type checking
     - [x] Basic type checking.

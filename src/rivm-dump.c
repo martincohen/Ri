@@ -70,18 +70,18 @@ rivm_dump_param_(RiVmParam* param, CharArray* out)
 
 #undef RIVM_DUMP_PARAM_TYPE_
 
-void
-rivm_dump_labels(RiVmCompiler* compiler, CharArray* out, iptr address)
-{
-    for (iptr i = 0; i < compiler->labels.count; ++i) {
-        if (compiler->labels.items[i] == address) {
-            chararray_push_f(out, "_%d:\n", i + 1);
-        }
-    }
-}
+// void
+// rivm_dump_labels(RiVmCompiler* compiler, CharArray* out, iptr address)
+// {
+//     for (iptr i = 0; i < compiler->labels.count; ++i) {
+//         if (compiler->labels.items[i] == address) {
+//             chararray_push_f(out, "_%d:\n", i + 1);
+//         }
+//     }
+// }
 
 void
-rivm_dump_func(RiVmCompiler* compiler, RiVmFunc* func, CharArray* out)
+rivm_dump_func(RiVmFunc* func, CharArray* out)
 {
     RiVmInst* it = func->code.items;
     CharArray s0 = {0};
@@ -90,7 +90,7 @@ rivm_dump_func(RiVmCompiler* compiler, RiVmFunc* func, CharArray* out)
 
     for (iptr i = 0; i < func->code.count; ++i, ++it)
     {
-        rivm_dump_labels(compiler, out, i);
+        // rivm_dump_labels(compiler, out, i);
 
         array_clear(&s0);
         array_clear(&s1);
@@ -101,7 +101,7 @@ rivm_dump_func(RiVmCompiler* compiler, RiVmFunc* func, CharArray* out)
 
         const char* sop = RIVM_DEBUG_OP_NAMES_[it->op];
 
-        chararray_push_f(out, "    (");
+        chararray_push_f(out, "    %4d (", i);
         if (rivm_op_is_in(it->op, Binary)) {
             chararray_push_f(out, "%S = %S %s %S", s0, s1, sop, s2);
         } else {
@@ -146,11 +146,11 @@ rivm_dump_func(RiVmCompiler* compiler, RiVmFunc* func, CharArray* out)
 }
 
 void
-rivm_dump_module(RiVmCompiler* compiler, RiVmModule* module, CharArray* out)
+rivm_dump_module(RiVmModule* module, CharArray* out)
 {
     RiVmFunc* it;
     slice_eachi(&module->func, i, &it) {
         chararray_push_f(out, "func%d:\n", i);
-        rivm_dump_func(compiler, it, out);
+        rivm_dump_func(it, out);
     }
 }

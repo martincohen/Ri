@@ -1,10 +1,9 @@
 RIVM_INST(None, "none")
 
 RIVM_INST(Nop, "nop")
-RIVM_INST(Ret, "ret")
 
 RIVM_INST(Enter, "enter")
-RIVM_INST(Leave, "leave")
+RIVM_INST(Ret, "ret")
 
 // Assign(A = B)
 RIVM_INST(Assign, "assign")

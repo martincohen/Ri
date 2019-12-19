@@ -39,7 +39,7 @@ testrivm_compiler_compile_file_(const char* name)
     ASSERT(rivm_compile(&compiler, ast_module, &module));
 
     CharArray actual = {0};
-    rivm_dump_module(&compiler, &module, &actual);
+    rivm_dump_module(&module, &actual);
 
     if (expected.items != NULL) {
         if (!string_is_equal(S(expected.items, expected.count), actual.slice)) {

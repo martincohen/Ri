@@ -22,5 +22,6 @@ int main(int argc, char** argv)
 
 void core_main()
 {
+    // AttachConsole(ATTACH_PARENT_PROCESS);
     ExitProcess(main(0, 0));
 }

@@ -79,7 +79,6 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
 
             case RiVmOp_Ret:
                 // No arguments, we're storing the result to output slot.
-                RI_CHECK(inst.param0.type == RiVmValue_None);
                 RI_CHECK(inst.param1.type == RiVmValue_None);
                 RI_CHECK(inst.param2.type == RiVmValue_None);
                 break;
@@ -112,13 +111,10 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
                 RI_CHECK(inst.param0.kind == RiVmParam_None);
                 break;
 
-            case RiVmOp_Leave:
-                RI_CHECK(inst.param0.kind == RiVmParam_Imm);
-                break;
-
             case RiVmOp_Call:
                 RI_CHECK(inst.param0.kind == RiVmParam_Slot);
-                RI_CHECK(inst.param1.kind == RiVmParam_Imm);
+                RI_CHECK(inst.param1.kind == RiVmParam_Func);
+                RI_CHECK(inst.param1.func != 0);
                 break;
 
             case RiVmOp_ArgPush:
@@ -186,10 +182,11 @@ static void
 rivm_release_slot_(RiVmCompiler* compiler, RiVmParam param)
 {
     if (param.kind == RiVmParam_Slot) {
-        RI_ASSERT(param.slot.index >= 0);
-        RI_ASSERT(param.slot.kind == RiSlot_Temporary);
-        param.kind = RiVmParam_None;
-        array_push(&compiler->slot_pool, param.slot.index);
+        if (param.slot.kind == RiSlot_Temporary) {
+            RI_ASSERT(param.slot.index >= 0);
+            param.kind = RiVmParam_None;
+            array_push(&compiler->slot_pool, param.slot.index);
+        }
     } else {
         RI_ASSERT(param.kind == RiVmParam_Imm);
     }
@@ -325,6 +322,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 {
                     RiVmParam arg = rivm_compile_expr_(compiler, arguments->items[i]);
                     rivm_code_emit(&compiler->code, ArgPush, arg);
+                    rivm_release_slot_(compiler, arg);
                 }
 
                 RiNode* spec = ast_expr->call.func->value.spec;
@@ -344,9 +342,8 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 rivm_code_emit(&compiler->code,
                     Call,
                     result,
-                    rivm_make_param(Imm,
-                        .type = RiVmValue_U64,
-                        .imm.ptr = spec
+                    rivm_make_param(Func,
+                        .func = spec
                     )
                 );
 
@@ -405,10 +402,12 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
             if (ast_st->st_return.argument) {
                 // TODO: Optimization: Allow for rivm_compile_expr_ to take target for expression result? This can also be done as an additional optimization step.
                 RiVmParam result = rivm_compile_expr_(compiler, ast_st->st_return.argument);
-                RiVmParam target = rivm_get_param_for_output_(compiler, 0);
-                rivm_code_emit(&compiler->code, Assign, target, result);
+                rivm_code_emit(&compiler->code, Ret, result);
+                // RiVmParam target = rivm_get_param_for_output_(compiler, 0);
+                // rivm_code_emit(&compiler->code, Assign, target, result);
+            } else {
+                rivm_code_emit(&compiler->code, Ret);
             }
-            rivm_code_emit(&compiler->code, Ret);
         } break;
 
         case RiNode_St_Assign: {
@@ -488,9 +487,8 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     RiVmInst* enter = &array_at(&compiler->code, enter_index);
     enter->param0 = rivm_make_param(Imm,
         .type = RiVmValue_U64,
-        .imm.u64 = slot_locals
+        .imm.u64 = compiler->slot_next - slot_locals
     );
-    rivm_code_emit(&compiler->code, Leave, enter->param0);
     ast_func->spec.func.slot = compiler->module->func.count;
 
     RiVmFunc* func = rivm_module_push_func(compiler->module, compiler->code.slice);
@@ -505,7 +503,15 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
 }
 
 static void
-rivm_subst_(RiVmCompiler* compiler, RiVmModule* module)
+rivm_patch_label_(RiVmCompiler* compiler, RiVmParam* param)
+{
+    param->kind = RiVmParam_Imm;
+    param->type = RiVmValue_U64;
+    param->imm.u64 = array_at(&compiler->labels, param->label - 1);
+}
+
+static void
+rivm_patch_(RiVmCompiler* compiler, RiVmModule* module)
 {
     RiVmFunc* func;
     RiVmInst* inst;
@@ -516,11 +522,21 @@ rivm_subst_(RiVmCompiler* compiler, RiVmModule* module)
             switch (inst->op)
             {
                 case RiVmOp_Call: {
-                    RiNode* ast_func = inst->param1.imm.ptr;
+                    RI_CHECK(inst->param1.kind == RiVmParam_Func);
+                    RiNode* ast_func = inst->param1.func;
                     RI_CHECK(ast_func);
                     RI_CHECK(ast_func->spec.func.slot != RI_INVALID_SLOT);
                     RiVmFunc* func = array_at(&module->func, ast_func->spec.func.slot);
-                    inst->param1.imm.ptr = func;
+                    inst->param1.func = func;
+                } break;
+
+                case RiVmOp_If: {
+                    rivm_patch_label_(compiler, &inst->param1);
+                    rivm_patch_label_(compiler, &inst->param2);
+                } break;
+
+                case RiVmOp_GoTo: {
+                    rivm_patch_label_(compiler, &inst->param0);
                 } break;
             }
         }
@@ -545,7 +561,7 @@ rivm_compile(RiVmCompiler* compiler, RiNode* ast_module, RiVmModule* module)
         }
     }
 
-    rivm_subst_(compiler, module);
+    rivm_patch_(compiler, module);
 
     return true;
 }
@@ -586,14 +602,14 @@ rivm_compile_file(String path, RiVmModule* module)
     }
 
     array_clear(&out);
-    rivm_dump_module(&compiler, module, &out);
+    rivm_dump_module(module, &out);
     LOG("%S", out);
 
     array_purge(&out);
     rivm_purge(&compiler);
     ri_purge(&ri);
 
-    __debugbreak();
+    // __debugbreak();
 
     return module;
 }

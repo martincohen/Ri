@@ -63,7 +63,18 @@ enum RiVmParamKind
     RiVmParam_Slot,
     RiVmParam_Imm,
     RiVmParam_Label,
-    RiVmParam_Func,
+    RiVmParam_Func
+};
+
+#define RIVMPARAMKIND_PAIR(A, B) \
+    (((uint32_t)(A) << 8) | (uint32_t)(B))
+
+enum RiVmParamKindPair
+{
+    RiVmParam_SlotSlot  = RIVMPARAMKIND_PAIR(RiVmParam_Slot, RiVmParam_Slot),
+    RiVmParam_SlotImm   = RIVMPARAMKIND_PAIR(RiVmParam_Slot, RiVmParam_Imm),
+    RiVmParam_ImmSlot   = RIVMPARAMKIND_PAIR(RiVmParam_Imm, RiVmParam_Slot),
+    RiVmParam_ImmImm    = RIVMPARAMKIND_PAIR(RiVmParam_Imm, RiVmParam_Imm),
 };
 
 enum RiVmParamSlotKind
@@ -88,7 +99,7 @@ struct RiVmParam
         } slot;
         RiVmValue imm;
         uint32_t label;
-        uint32_t func;
+        void* func;
     };
 };
 

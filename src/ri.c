@@ -705,11 +705,12 @@ ri_retof_(Ri* ri, RiNode* node)
                         return ri_get_spec_(ri, output->decl.spec->spec.var.type);
                     }
                     case 0:
-                        // TODO: Void type.
-                        RI_TODO;
-                        break;
-                    default:
+                        return ri->node_meta[RiNode_Spec_Type_None].node;
+
+                    default: {
+                        // TODO: Multiple return arguments.
                         RI_UNREACHABLE;
+                    }
                 }
             } break;
 
@@ -2407,12 +2408,12 @@ static RI_RESOLVE_F_(ri_resolve_identifier_)
         scope = scope->owner;
     }
 
-    RI_CHECK(decl->owner == scope);
-
     if (decl == NULL) {
         ri_error_set_(ri, RiError_NotDeclared, id->pos, "%S was not declared", id->id.name);
         return false;
     }
+
+    RI_CHECK(decl->owner == scope);
 
     RI_CHECK(decl->kind == RiNode_Decl);
 
@@ -2600,14 +2601,16 @@ ri_resolve(Ri* ri, RiNode* node)
 //
 
 static void
-ri_typecheck_set_(Ri* ri, RiNode* expr, RiNode* type)
+ri_typecheck_cast_const_(Ri* ri, RiNode* expr, RiNode* type)
 {
+    RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type));
     if (ri_is_in(expr->kind, RiNode_Expr_Binary)) {
-        ri_typecheck_set_(ri, expr->binary.argument0, type);
-        ri_typecheck_set_(ri, expr->binary.argument1, type);
+        ri_typecheck_cast_const_(ri, expr->binary.argument0, type);
+        ri_typecheck_cast_const_(ri, expr->binary.argument1, type);
     } else if (ri_is_in(expr->kind, RiNode_Expr_Unary)) {
-        ri_typecheck_set_(ri, expr->unary.argument, type);
+        ri_typecheck_cast_const_(ri, expr->unary.argument, type);
     } else if (expr->kind == RiNode_Value_Const) {
+        // TODO: We need to be sure that the const type can actually be implicitly cast to `type`.
         RI_ASSERT(ri_is_in(expr->value.type->kind, RiNode_Spec_Type_Number_None));
         expr->value.type = type;
     }
@@ -2652,7 +2655,7 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                 RI_CHECK(d1 == false);
                 // Both are not-dominant, so we'll set their respective defaults.
                 t0 = t1 = ri_typecheck_get_untyped_default_type_(ri, t0->kind);
-                ri_typecheck_set_(ri, node, t0);
+                ri_typecheck_cast_const_(ri, node, t0);
             }
         } else {
             // Types are different, so return the more dominant one.
@@ -2667,12 +2670,12 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                 // Left it dominant.
                 // Set right to t0?
                 t1 = t0;
-                ri_typecheck_set_(ri, node->binary.argument1, t0);
+                ri_typecheck_cast_const_(ri, node->binary.argument1, t0);
             } else {
                 RI_CHECK(d0 == false && d1 == true);
                 // Right is dominant.
                 t0 = t1;
-                ri_typecheck_set_(ri, node->binary.argument0, t1);
+                ri_typecheck_cast_const_(ri, node->binary.argument0, t1);
             }
         }
 
@@ -2703,22 +2706,19 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                 // Left it dominant.
                 // Set right to t0.
                 t1 = t0;
-                ri_typecheck_set_(ri, node->binary.argument1, t0);
+                ri_typecheck_cast_const_(ri, node->binary.argument1, t0);
             } else {
                 RI_CHECK(d0 == false && d1 == true);
                 // Right is dominant.
                 // Set left to t1.
                 t0 = t1;
-                ri_typecheck_set_(ri, node->binary.argument0, t1);
+                ri_typecheck_cast_const_(ri, node->binary.argument0, t1);
             }
         }
 
         return t0;
     } else if (ri_is_in(node->kind, RiNode_Expr_Unary)) {
         return ri_typecheck_node_(ri, node->unary.argument);
-    } else if (node->kind == RiNode_Decl && node->decl.spec->kind == RiNode_Spec_Var) {
-        // var a = <node>
-        return ri_get_spec_(ri, node->decl.spec->spec.var.type);
     } else {
         switch (node->kind)
         {
@@ -2743,8 +2743,32 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                             return NULL;
                         }
                         break;
+                    case RiNode_Spec_Var:
+                        return ri_get_spec_(ri, node->decl.spec->spec.var.type);
                 }
                 return type_none;
+            } break;
+
+            case RiNode_Expr_Call: {
+                RiNode* func_spec = ri_get_spec_(ri, node->call.func);
+                RiNode* func_type = ri_get_spec_(ri, func_spec->spec.func.type);
+                RiNodeArray* inputs = &func_type->spec.type.func.inputs;
+                RiNode* it;
+                array_eachi(&node->call.arguments, i, &it)
+                {
+                    RiNode* t = ri_typecheck_node_(ri, it);
+                    if (!t) {
+                        return NULL;
+                    }
+                    if (ri_is_in(t->kind, RiNode_Spec_Type_Number_None)) {
+                        // TODO: Cast constant to type required by input argument at `i`.
+                        RiNode* arg = array_at(inputs, i);
+                        RI_CHECK(arg->kind == RiNode_Decl);
+                        RI_CHECK(arg->decl.spec->kind == RiNode_Spec_Var);
+                        ri_typecheck_cast_const_(ri, it, ri_get_spec_(ri, arg->decl.spec->spec.var.type));
+                    }
+                }
+                return ri_retof_(ri, node);
             } break;
 
             case RiNode_St_Return: {
@@ -2767,7 +2791,7 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                     if (ri_is_in(type1->kind, RiNode_Spec_Type_Number_None)) {
                         // If right is untyped, set it to default.
                         type1 = ri_typecheck_get_untyped_default_type_(ri, type1->kind);
-                        ri_typecheck_set_(ri, node->binary.argument1, type1);
+                        ri_typecheck_cast_const_(ri, node->binary.argument1, type1);
                     }
 
                     // Set left type to same type as we now have for right.
@@ -2784,15 +2808,25 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                         &&
                         type1->kind == RiNode_Spec_Type_Number_None_Real
                     ) {
-                        ri_typecheck_set_(ri, node->binary.argument1, type0);
+                        ri_typecheck_cast_const_(ri, node->binary.argument1, type0);
                     } else if (ri_is_in(type0->kind, RiNode_Spec_Type_Number_Int) &&
                         type1->kind == RiNode_Spec_Type_Number_None_Int
                     ) {
-                        ri_typecheck_set_(ri, node->binary.argument1, type0);
+                        ri_typecheck_cast_const_(ri, node->binary.argument1, type0);
                     } else {
                         ri_error_set_mismatched_types_(ri, node->pos, type0, type1, "=");
                         return NULL;
                     }
+                }
+                return type_none;
+            } break;
+
+            case RiNode_St_If: {
+                if (node->st_if.pre && !ri_typecheck_node_(ri, node->st_if.pre)) {
+                    return NULL;
+                }
+                if (!ri_typecheck_node_(ri, node->st_if.condition)) {
+                    return NULL;
                 }
                 return type_none;
             } break;
