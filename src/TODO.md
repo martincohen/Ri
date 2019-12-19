@@ -28,6 +28,8 @@ See README.md for high-level tasks.
 
 ### AST
 
+- [ ] Ignore named return values.
+- [ ] If the function doesn't return anything, `return` should have no arguments.
 - [ ] Type checking
     - [x] Basic type checking.
     - [x] Constant implicit casting.

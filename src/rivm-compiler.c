@@ -266,7 +266,7 @@ rivm_get_param_(RiVmCompiler* compiler, RiNode* ast_var)
         return param;
     }
 
-    return rivm_get_slot_param_(compiler, ast_spec->spec.var.slot);    
+    return rivm_get_slot_param_(compiler, ast_spec->spec.var.slot);
 }
 
 static RiVmParam
@@ -349,7 +349,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                         .imm.ptr = spec
                     )
                 );
-                
+
                 rivm_code_emit(&compiler->code,
                     ArgPopN,
                     rivm_make_param(Imm,
@@ -476,7 +476,9 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     RiNode* ast_func_type = ast_func->spec.func.type;
     // Allocate slots for input and output parameters.
     rivm_acquire_func_args_(compiler, RiSlot_Input, &ast_func_type->spec.type.func.inputs);
-    rivm_acquire_func_args_(compiler, RiSlot_Output, &ast_func_type->spec.type.func.outputs);
+    // TODO: Multiple return values.
+    RI_ASSERT(ast_func_type->spec.type.func.outputs.count < 2);
+    // rivm_acquire_func_args_(compiler, RiSlot_Output, &ast_func_type->spec.type.func.outputs);
 
     uint32_t slot_locals = compiler->slot_next;
     uint32_t enter_index = rivm_code_emit(&compiler->code, Enter);
@@ -558,7 +560,7 @@ rivm_compile_file(String path, RiVmModule* module)
     Ri ri;
     ri_init(&ri);
     CharArray out = {0};
-    
+
     RiNode* ast_module = NULL;
 
     {

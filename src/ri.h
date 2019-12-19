@@ -24,6 +24,7 @@ typedef enum RiTokenKind RiTokenKind;
 typedef enum RiNodeKind RiNodeKind;
 typedef enum RiDeclState RiDeclState;
 typedef enum RiTypeCompleteness RiTypeCompleteness;
+typedef enum RiVarKind RiVarKind;
 
 #define RI_INVALID_SLOT (-1)
 
@@ -371,12 +372,30 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
 #define ri_is_expr_like(NodeKind) \
     (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Const))
 
+//
+//
+//
+
+enum RiVarKind {
+    RiVar_Local,
+    RiVar_Input,
+    RiVar_Output,
+};
+
+//
+//
+//
+
 union RiLiteral {
     uint64_t integer;
     double real;
     String string;
     bool boolean;
 };
+
+//
+//
+//
 
 struct RiNode
 {
@@ -418,6 +437,7 @@ struct RiNode
 
                 struct {
                     RiNode* type;
+                    RiVarKind kind;
                     // Used by compiler.
                     // RI_INVALID_SLOT by default.
                     uint32_t slot;
@@ -561,6 +581,8 @@ struct Ri {
     const char* id_true;
     const char* id_false;
     const char* id_nil;
+
+    const char* id_underscore; // _
 
     RiNodeMeta node_meta[RiNode_COUNT__];
 

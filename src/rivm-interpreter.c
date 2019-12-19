@@ -1,8 +1,9 @@
 #include "rivm-interpreter.h"
 
+// Implementation of calling convetion inside of VM:
 // - Caller pushes input arguments.
-// - Caller pushes output arguments.
-// - Caller calls callee with a stack pointer pointing to first input arguments.
+// - Caller calls callee with a stack pointer pointing to first input argument.
+// - Callee reserves a value on C side for return value that is set when `ret <expr>` is called.
 // - Callee pushes space needed for it's local and temporary variables. (`enter N`)
 // - Callee uses slot indices in instruction params to operate over inputs, outputs, locals and temporaries.
 // - Callee pops space needed for it's local and temporary variables. (`leave N`)
@@ -61,8 +62,8 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
 {
     RiVmInst* inst;
     int64_t i = 0;
-    
-    RiVmValue r;
+
+    RiVmValue result;
     RiVmValue* callee_stack = NULL;
 
     for (;;)
@@ -82,6 +83,9 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
                 goto end;
 
             case RiVmOp_Ret:
+                if (inst->param1.kind) {
+                    result.u64 = inst->param1.imm.u64;
+                }
                 break;
 
             case RiVmOp_Assign:
@@ -131,7 +135,7 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
     }
 
 end:;
-    return r;
+    return result;
 }
 
 RiVmValue

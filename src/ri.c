@@ -829,11 +829,12 @@ ri_make_identifier_(Ri* ri, RiPos pos, String name)
 }
 
 static RiNode*
-ri_make_spec_var_(Ri* ri, RiPos pos, String id, RiNode* type)
+ri_make_spec_var_(Ri* ri, RiPos pos, String id, RiNode* type, RiVarKind kind)
 {
     RiNode* spec = ri_make_node_(ri, pos, RiNode_Spec_Var);
     spec->spec.id = id;
     spec->spec.var.type = type;
+    spec->spec.var.kind = kind;
     spec->spec.var.slot = RI_INVALID_SLOT;
     return spec;
 }
@@ -1146,7 +1147,7 @@ ri_parse_expr_dot_(Ri* ri)
     return L;
 }
 
-bool
+static bool
 ri_parse_expr_call_arguments_(Ri* ri, RiNode* call)
 {
     while (ri_lex_next_if_(ri, RiToken_RP) == RiLexNextIf_NoMatch) {
@@ -1417,19 +1418,17 @@ ri_parse_decl_variable_(Ri* ri)
         }
     }
 
-    RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type);
+    RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type, RiVar_Local);
     RiNode* decl = ri_make_decl_(ri, token.pos, spec);
     return decl;
 }
 
 static RiNode*
-ri_parse_decl_type_func_arg_(Ri* ri)
+ri_parse_decl_type_func_input_arg_(Ri* ri)
 {
     // <id> <type-spec>
     // type-spec: <id> | _ | function(...)(...) | struct {...} ...
 
-    // TODO: Implement unnamed output arguments `func main() (int32)`.
-    // TODO: Implement naked unnamed output arguments `func main() int32`.
     // TODO: Implement short syntax for arguments of same type `function (a, b int32)`.
     // TODO: Implement `...int32` for variable arity.
 
@@ -1443,13 +1442,13 @@ ri_parse_decl_type_func_arg_(Ri* ri)
         return NULL;
     }
 
-    RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type);
+    RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type, RiVar_Input);
     RiNode* decl = ri_make_decl_(ri, token.pos, spec);
     return decl;
 }
 
 static bool
-ri_parse_decl_type_func_arg_list_(Ri* ri, RiNodeArray* list)
+ri_parse_decl_type_func_input_arg_list_(Ri* ri, RiNodeArray* list)
 {
     if (!ri_lex_expect_token_(ri, RiToken_LP)) {
         return false;
@@ -1458,7 +1457,7 @@ ri_parse_decl_type_func_arg_list_(Ri* ri, RiNodeArray* list)
     RiNode* decl_arg;
     while (ri->token.kind != RiToken_RP)
     {
-        decl_arg = ri_parse_decl_type_func_arg_(ri);
+        decl_arg = ri_parse_decl_type_func_input_arg_(ri);
         if (!decl_arg) {
             return false;
         }
@@ -1474,6 +1473,24 @@ ri_parse_decl_type_func_arg_list_(Ri* ri, RiNodeArray* list)
     return true;
 }
 
+static bool
+ri_parse_decl_type_func_output_arg_(Ri* ri, RiNodeArray* outputs)
+{
+    if (ri->token.kind == RiToken_Semicolon) {
+        return true;
+    }
+
+    RiNode* type = ri_parse_type_(ri);
+    if (type) {
+        RiNode* spec = ri_make_spec_var_(ri, type->pos, (String){0}, type, RiVar_Output);
+        RiNode* decl = ri_make_decl_(ri, type->pos, spec);
+        array_push(outputs, decl);
+        return true;
+    }
+
+    return false;
+}
+
 static RiNode*
 ri_parse_spec_partial_func_type_(Ri* ri, RiPos pos)
 {
@@ -1481,12 +1498,11 @@ ri_parse_spec_partial_func_type_(Ri* ri, RiPos pos)
 
     RiNodeArray inputs = {0};
     RiNodeArray outputs = {0};
-    if (!ri_parse_decl_type_func_arg_list_(ri, &inputs)) {
+    if (!ri_parse_decl_type_func_input_arg_list_(ri, &inputs)) {
         return NULL;
     }
-    // TODO: (...)
-    // TODO: <name> <type-spec>
-    if (!ri_parse_decl_type_func_arg_list_(ri, &outputs)) {
+
+    if (!ri_parse_decl_type_func_output_arg_(ri, &outputs)) {
         return NULL;
     }
 
@@ -1531,12 +1547,14 @@ ri_parse_spec_partial_func_(Ri* ri, RiPos pos, String id)
                     (ValueScalar){ .ptr = it }
                 );
             }
-            array_each(&type->spec.type.func.outputs, &it) {
-                map_put(&scope->scope.map,
-                    (ValueScalar){ .ptr = it->decl.spec->spec.id.items },
-                    (ValueScalar){ .ptr = it }
-                );
-            }
+            // TODO: Multiple return values.
+            // TODO: Named return variables.
+            // array_each(&type->spec.type.func.outputs, &it) {
+            //     map_put(&scope->scope.map,
+            //         (ValueScalar){ .ptr = it->decl.spec->spec.id.items },
+            //         (ValueScalar){ .ptr = it }
+            //     );
+            // }
             array_push(&scope->scope.statements, scope_body);
         } break;
         case RiLexNextIf_Error:
@@ -3178,6 +3196,8 @@ ri_init(Ri* ri)
     ri->id_true        = ri_make_id_(ri, S("true")).items;
     ri->id_false       = ri_make_id_(ri, S("false")).items;
     ri->id_nil         = ri_make_id_(ri, S("nil")).items;
+
+    ri->id_underscore  = ri_make_id_(ri, S("_")).items;
 
     ri->scope = ri_make_scope_(ri, RI_POS_OUTSIDE);
 

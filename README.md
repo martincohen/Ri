@@ -207,6 +207,13 @@ The list will grow as I go.
 
 Language details to be determined.
 
+- [ ] No semicolons
+    - REQUIREMENT: No whitespace significance (cannot be determined by new-line characters).
+    - Semicolon after `return` can be determined by whether function has an output argument.
+    - Semicolon after function input arguments where a return type without parens might occur is problematic.
+        - `func (a int32);? int32;?`
+        - Make return value to be required (introducing `void`)?
+        - Make return value to be always wrapped in parens? `func (a int32) (int32)`?
 - [ ] Multiple function output arguments
     - In C implemented as non-const pointer parameters.
     - Really wanted only for error reporting.
