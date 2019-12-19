@@ -7,7 +7,7 @@ package.path = table.concat({
 
 
 local config = {
-    release = true,
+    release = false,
     minimal = true,
     path = path,
 }
