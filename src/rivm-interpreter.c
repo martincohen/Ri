@@ -142,14 +142,11 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
                 }
             } break;
 
-            case RiVmOp_ArgPopN: {
-                rivm_stack_pop(&context->stack, inst->param0.imm.u64);
-            } break;
-
             case RiVmOp_Call: {
                 RiVmFunc* callee_func = inst->param1.func;
                 RiVmValue callee_result = rivm_exec_(context, callee_stack, callee_func);
                 get_local(inst->param0).u64 = callee_result.u64;
+                rivm_stack_pop(&context->stack, inst->param2.imm.u64);
             } break;
 
             case RiVmOp_If: {

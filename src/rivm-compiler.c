@@ -115,14 +115,11 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
                 RI_CHECK(inst.param0.kind == RiVmParam_Slot);
                 RI_CHECK(inst.param1.kind == RiVmParam_Func);
                 RI_CHECK(inst.param1.func != 0);
+                RI_CHECK(inst.param2.kind == RiVmParam_Imm);
                 break;
 
             case RiVmOp_ArgPush:
                 RI_CHECK(inst.param0.kind != RiVmParam_None);
-                break;
-
-            case RiVmOp_ArgPopN:
-                RI_CHECK(inst.param0.kind == RiVmParam_Imm);
                 break;
 
             default:
@@ -344,11 +341,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                     result,
                     rivm_make_param(Func,
                         .func = spec
-                    )
-                );
-
-                rivm_code_emit(&compiler->code,
-                    ArgPopN,
+                    ),
                     rivm_make_param(Imm,
                         .type = RiVmValue_U64,
                         .imm.i64 = arguments->count

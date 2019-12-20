@@ -19,12 +19,9 @@ RIVM_INST(AddrOf, "addr-of")
 // Arg(Value)
 // Pushes Value to the stack.
 RIVM_INST(ArgPush, "arg-push")
-// PopN(Count)
-// Pops A count of arguments.
-RIVM_INST(ArgPopN, "arg-pop-n")
 
-// A = Call(Func B)
-// Calls function B and sets result to A.
+// A = Call(Func B, Imm C)
+// Calls function B, sets result to A, pops C arguments pushed with ArgPush.
 // If A.Type == None, result is ignored.
 RIVM_INST(Call, "call")
 
