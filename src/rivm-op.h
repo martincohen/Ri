@@ -23,7 +23,10 @@ RIVM_INST(ArgPush, "arg-push")
 // A = Call(Func B, Imm C)
 // Calls function B, sets result to A, pops C arguments pushed with ArgPush.
 // If A.Type == None, result is ignored.
-RIVM_INST(Call, "call")
+RIVM_INST(Call,  "call")
+// A = CallC(CFunc B, Imm C)
+// Same as above, except B is a pointer to a C function we call via system's native calling convention.
+RIVM_INST(CallC, "call-c")
 
 // (goto A)
 RIVM_INST(GoTo, "goto")

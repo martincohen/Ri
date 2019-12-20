@@ -1,4 +1,6 @@
 #include "rivm-interpreter.h"
+#include "rivm-dcall.h"
+
 
 // Implementation of calling convetion inside of VM:
 // - Caller pushes input arguments.
@@ -8,6 +10,10 @@
 // - Callee uses slot indices in instruction params to operate over inputs, outputs, locals and temporaries.
 // - Callee pops space needed for it's local and temporary variables. (`leave N`)
 // - Caller pops space needed for input and output arguments.
+
+//
+//
+//
 
 void
 rivm_exec_init(RiVmExec* context)

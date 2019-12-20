@@ -4,10 +4,24 @@ local template = require 'template'
 local execute = util.execute
 local push = table.insert
 
--- minimal base: 2560 bytes
+local function ml64(input, output)
+    return {
+        'ml64',
+        '/nologo',
+        '/c',
+        '/DWIN_X64',
+        '/Zi',
+        '/Cp',
+        '/Fl',
+        string.format('/Fo%s', output),
+        input
+    }
+end
 
 return function (config)
     print('building executable...')
+
+    execute(ml64('../src/rivm-dcall.asm', 'rivm-dcall.obj'))
 
     local compiler = {
         '-nologo',
@@ -97,6 +111,8 @@ return function (config)
             'chkstk64.obj'
         })
     end
+
+    push(libs, { 'rivm-dcall.obj' })
 
     push(compiler, '-DMATH_SSE')
 

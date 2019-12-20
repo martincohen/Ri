@@ -14,6 +14,7 @@ struct RiVmStack
 
 struct RiVmExec
 {
+    void* host;
     RiVmStack stack;
 };
 
