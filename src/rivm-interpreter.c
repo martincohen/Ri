@@ -86,7 +86,6 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
     int64_t i = 0;
 
     RiVmValue result;
-    RiVmValue* callee_stack = NULL;
     uint64_t locals_count = 0;
 
     for (;;)
@@ -99,7 +98,6 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
             case RiVmOp_Enter:
                 locals_count = inst->param0.imm.u64;
                 rivm_stack_push(&context->stack, locals_count);
-                callee_stack = context->stack.it;
                 break;
 
             case RiVmOp_Ret:
@@ -144,7 +142,7 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
 
             case RiVmOp_Call: {
                 RiVmFunc* callee_func = inst->param1.func;
-                RiVmValue callee_result = rivm_exec_(context, callee_stack, callee_func);
+                RiVmValue callee_result = rivm_exec_(context, context->stack.it - inst->param2.imm.u64, callee_func);
                 get_local(inst->param0).u64 = callee_result.u64;
                 rivm_stack_pop(&context->stack, inst->param2.imm.u64);
             } break;

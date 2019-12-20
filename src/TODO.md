@@ -118,8 +118,10 @@ See README.md for high-level tasks.
 GOAL: Three-address code bytecode.
 
 - [x] Baseline compiler infrastructure.
-- [ ] Call compilation.
-- [ ] Enable per-function compilation so we can try compile-time execution.
+- [x] Call compilation.
+
+- [ ] Calling C functions.
+- [ ] Allow per-function compilation so we can try compile-time execution.
 
 ## Interpreter
 

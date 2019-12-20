@@ -47,16 +47,16 @@ Project is planned to be split to STB-style modules:
     - Library
     - Lexing, Parsing, Resolution, Validation.
     - Take string, output AST or error.
-- `ri-to-vm.h`
+- `rivm-compiler.h`
     - Library
     - Take _RiAST_, output _RiVM_ module blob.
-- `ri-vm.h`
+- `rivm-interpreter.h`
     - Library
     - Take _RiVM_ blob, run it.
 
 Standalone programs:
 
-- `ri-to-c.c`
+- `ric.c`
     - Program
     - Take _RiAST_, output C file(s).
     - Run compiler.
@@ -89,34 +89,42 @@ The work is split to phases:
 
 The list will grow as I go.
 
+Following lists detailed features. Since the project has multiple layers, I use following abbreviations to mark what's complete:
+
+- `P` -- Parsing to AST
+- `T` -- Type checking in AST
+- `C` -- Compiling to VM (IR)
+- `I` -- Interpreting from VM (IR)
+
 - [x] Built-in types
-    - [x] `int8`
-    - [x] `uint8`
-    - [x] `int16`
-    - [x] `uint16`
-    - [x] `int32`
-    - [x] `uint32`
-    - [x] `int64`
-    - [x] `uint64`
-    - [x] `float32`
-    - [x] `float64`
-    - [x] `bool`
+    - [x] `int8` (PT)
+    - [x] `uint8` (PT)
+    - [x] `int16` (PT)
+    - [x] `uint16` (PT)
+    - [x] `int32` (PTCI)
+    - [x] `uint32` (PTCI)
+    - [x] `int64` (PTCI)
+    - [x] `uint64` (PTCI)
+    - [x] `float32` (PT)
+    - [x] `float64` (PT)
+    - [x] `bool` (PT)
     - [ ] Complex type(s)
         - `complex64`
         - `complex128`
-    - [ ] SSE type(s)
     - [ ] Pointers
         - [ ] Function pointers
+            - Explicit `*MyFuncType` to make a run-time function pointer.
     - [ ] Struct
     - [ ] Union
     - [ ] Enum
     - [ ] Slices
         - `[]type`
+    - [ ] SSE type(s)
 - [ ] Constants
     - [ ] Untyped constant literal
-        - [x] Integer
-        - [x] Real
-        - [x] Boolean
+        - [x] Integer (PTCI)
+        - [x] Real (PTC)
+        - [x] Boolean (PTC)
         - [ ] String
         - [ ] Initializers
         - [ ] Nil
@@ -126,19 +134,19 @@ The list will grow as I go.
     - [x] Line comments
     - [ ] Block comments
 - [x] Function declaration
-    - [x] `function <name> (<inputs>) (<outputs>) { ... }`
-    - [ ] `function <name> (<inputs>) <type-spec>`
-    - [ ] `function <name> (<inputs>)`
+    - [x] `function <name> (<inputs>) <type-spec>`
+    - [x] `function <name> (<inputs>)`
+    - [ ] `function <name> (<inputs>) (<outputs>) { ... }` (later)
     - [ ] Convenience syntax for function arguments of same type (`a, b int32`)
 - [ ] Function prototype declaration
     - [x] `function <name> (<inputs>) (<outputs>)`
 - [ ] Function type
-    - [ ] `function (<inputs>) (<outputs>)`
     - [ ] `function (<inputs>) <type-spec>`
     - [ ] `function (<inputs>)`
+    - [ ] `function (<inputs>) (<outputs>)` (later)
 - [x] Call
     - [x] `<name>(<arguments>)`
-    - [ ] Type checking.
+    - [x] Type checking.
 - [x] If statement
     - [x] `if <pre-st>; <condition> { ... }`
     - [x] `if <condition> { ... }`

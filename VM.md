@@ -1,5 +1,11 @@
 # Virtual machine
 
+Interpreter uses IR produced by the compiler to execute the code. This serves as a reference implementation and testing the whole ensemble.
+
+- **Phase 1** Reference implementation
+- **Phase 2** Optimizations over IR
+- **Phase 2** x64 code generation
+
 ## Performace log
 
 ### Reference

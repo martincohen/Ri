@@ -116,7 +116,7 @@ rivm_dump_func(RiVmFunc* func, CharArray* out)
                     break;
 
                case RiVmOp_Call:
-                    chararray_push_f(out, "%S = (%s %S)", s0, sop, s1);
+                    chararray_push_f(out, "%S = (%s %S %S)", s0, sop, s1, s2);
                     break;
 
                 case RiVmOp_If:
@@ -150,7 +150,7 @@ rivm_dump_module(RiVmModule* module, CharArray* out)
 {
     RiVmFunc* it;
     slice_eachi(&module->func, i, &it) {
-        chararray_push_f(out, "func%d:\n", i);
+        chararray_push_f(out, "func%d:\n", it);
         rivm_dump_func(it, out);
     }
 }
