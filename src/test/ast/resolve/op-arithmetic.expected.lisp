@@ -1,4 +1,4 @@
-(scope 22
+(scope 27
   (decl
     (spec-var 'a'
       (value-type

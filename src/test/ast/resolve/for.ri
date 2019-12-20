@@ -1,6 +1,6 @@
 var x int32;
 
-for var i int32 = x; i; i = i + x {
+for var i int32 = x; i == 0; i = i + x {
     x = i;
 }
 
@@ -16,11 +16,11 @@ for ; ; x {
     x = x;
 }
 
-for ; x; x = x + x {
+for ; x == 1; x = x + x {
     x = x;
 }
 
-for ; x; {
+for ; x == 1; {
     x = x;
 }
 
@@ -28,10 +28,13 @@ for ; ; {
     x = x;
 }
 
-for x {
+for x == 1 {
     x = x;
 }
 
 for {
     x = x;
 }
+
+
+

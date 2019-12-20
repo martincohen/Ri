@@ -1,0 +1,11 @@
+// For now we need to keep main first.
+func main() int32 {
+	var a int32;
+	a = 1;
+	a = fu(a);
+	return a;
+}
+
+func fu(a int32) int32 {
+	return a + 1;
+}

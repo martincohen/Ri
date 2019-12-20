@@ -1,9 +1,9 @@
 #pragma once
 
+#include <co-lib.h>
 #include "ri.h"
 
-typedef struct RiVmCompiler RiVmCompiler;
-typedef struct RiVmValue RiVmValue;
+typedef union RiVmValue RiVmValue;
 typedef enum RiVmValueType RiVmValueType;
 typedef enum RiVmOp RiVmOp;
 typedef struct RiVmInst RiVmInst;
@@ -13,7 +13,8 @@ typedef struct RiVmParam RiVmParam;
 typedef struct RiVmFunc RiVmFunc;
 typedef struct RiVmModule RiVmModule;
 
-enum RiVmValueType {
+enum RiVmValueType
+{
     RiVmValue_None,
     RiVmValue_I32,
     RiVmValue_I64,
@@ -24,24 +25,33 @@ enum RiVmValueType {
     RiVmValue_COUNT__
 };
 
-union RiVmValue {
+union RiVmValue
+{
     int64_t i64;
     uint64_t u64;
+    // An alternative to u64.
+    void* ptr;
+
     int32_t i32;
     uint32_t u32;
+
     float f32;
     double f64;
 };
 
+typedef Slice(RiVmValue) RiVmValueSlice;
+
 enum RiVmOp
 {
-    #define GROUP_START(Name) RiVmOp_ ## Name ## _FIRST__,
-    #define GROUP_END(Name) RiVmOp_ ## Name ## _LAST__,
-    #define INST(Name, S) RiVmOp_ ## Name,
-        #include "rivmc-op.h"
-    #undef INST
-    #undef GROUP_END
-    #undef GROUP_START
+    #define RIVM_GROUP_START(Name) RiVmOp_ ## Name ## _FIRST__,
+    #define RIVM_GROUP_END(Name) RiVmOp_ ## Name ## _LAST__,
+    #define RIVM_INST(Name, S) RiVmOp_ ## Name,
+
+        #include "rivm-op.h"
+
+    #undef RIVM_INST
+    #undef RIVM_GROUP_END
+    #undef RIVM_GROUP_START
 };
 
 #define rivm_op_is_in(Op, Group) \
@@ -53,7 +63,18 @@ enum RiVmParamKind
     RiVmParam_Slot,
     RiVmParam_Imm,
     RiVmParam_Label,
-    RiVmParam_Func,
+    RiVmParam_Func
+};
+
+#define RIVMPARAMKIND_PAIR(A, B) \
+    (((uint32_t)(A) << 8) | (uint32_t)(B))
+
+enum RiVmParamKindPair
+{
+    RiVmParam_SlotSlot  = RIVMPARAMKIND_PAIR(RiVmParam_Slot, RiVmParam_Slot),
+    RiVmParam_SlotImm   = RIVMPARAMKIND_PAIR(RiVmParam_Slot, RiVmParam_Imm),
+    RiVmParam_ImmSlot   = RIVMPARAMKIND_PAIR(RiVmParam_Imm, RiVmParam_Slot),
+    RiVmParam_ImmImm    = RIVMPARAMKIND_PAIR(RiVmParam_Imm, RiVmParam_Imm),
 };
 
 enum RiVmParamSlotKind
@@ -78,9 +99,16 @@ struct RiVmParam
         } slot;
         RiVmValue imm;
         uint32_t label;
-        uint32_t func;
+        void* func;
     };
 };
+
+#define rivm_make_param(Kind, ...) \
+    (RiVmParam){ .kind = RiVmParam_ ## Kind, __VA_ARGS__ }
+
+//
+//
+//
 
 struct RiVmInst
 {
@@ -93,9 +121,15 @@ struct RiVmInst
 typedef Slice(RiVmInst) RiVmInstSlice;
 typedef ArrayWithSlice(RiVmInstSlice) RiVmInstArray;
 
+//
+//
+//
+
 struct RiVmFunc
 {
     RiVmInstSlice code;
+    int debug_inputs_count;
+    int debug_outputs_count;
 };
 
 typedef Slice(RiVmFunc*) RiVmFuncSlice;
@@ -107,29 +141,13 @@ typedef ArrayWithSlice(RiVmFuncSlice) RiVmFuncArray;
 
 struct RiVmModule
 {
-    RiVmFuncSlice func;
-};
-
-//
-//
-//
-
-struct RiVmCompiler
-{
-    Ri* ri;
     Arena arena;
     RiVmFuncArray func;
-
-    RiVmInstArray code;
-    uint32_t slot_next;
-    Array(uint32_t) slot_pool;
-    Array(uint32_t) labels;
-
-    RiNode* ast_func;
 };
 
-void rivm_init(RiVmCompiler* rix, Ri* ri);
-void rivm_purge(RiVmCompiler* rix);
-RiVmModule* rivm_compile(RiVmCompiler* rix, RiNode* ast_module);
-void rivm_dump_module(RiVmCompiler* rix, RiVmModule* module, CharArray* out);
-void rivm_dump_func(RiVmCompiler* rix, RiVmFunc* func, CharArray* out);
+void rivm_module_init(RiVmModule* module);
+void rivm_module_purge(RiVmModule* module);
+
+uint32_t rivm_module_emit(RiVmModule* module, const RiVmInst inst);
+
+RiVmFunc* rivm_module_push_func(RiVmModule* module, RiVmInstSlice code);

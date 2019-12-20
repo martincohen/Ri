@@ -1,4 +1,4 @@
-(scope 22
+(scope 27
   (decl
     (spec-var 'a'
       (value-type
@@ -21,12 +21,14 @@
         (out
           (decl
             (spec-var 'r'
-              (id 'int32')
+              (value-type
+                (spec-type-number 'int32')
+              )
             )
           )
         )
       )
-      (scope 28
+      (scope 33
         (decl
           (spec-var 'a'
             (value-type
@@ -35,7 +37,7 @@
           )
         )
         (code
-          (scope 36
+          (scope 41
             (code
               (st-return
                 (value-var
@@ -84,12 +86,14 @@
           (out
             (decl
               (spec-var 'r'
-                (id 'int32')
+                (value-type
+                  (spec-type-number 'int32')
+                )
               )
             )
           )
         )
-        (scope 28
+        (scope 33
           (decl
             (spec-var 'a'
               (value-type
@@ -118,12 +122,14 @@
               (out
                 (decl
                   (spec-var 'r'
-                    (id 'int32')
+                    (value-type
+                      (spec-type-number 'int32')
+                    )
                   )
                 )
               )
             )
-            (scope 28
+            (scope 33
               (decl
                 (spec-var 'a'
                   (value-type

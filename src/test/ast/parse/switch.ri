@@ -3,25 +3,32 @@ var a int32;
 switch a { }
 switch var b int32; a { }
 
-// switch a
-// {
-//     case 1:
-//         break;
-//     case 2:
-//         break;
-//     default:
-//         break;
-// }
+switch a
+{
+    case 1:
+    case 2:
+    case a + 1:
+}
 
-// switch ; a
-// {
-//     case 1: break;
-// }
+switch a
+{
+    case 1:
+        break;
+    case 2:
+        break;
+    default:
+        break;
+}
 
-// switch var b int32; a
-// {
-//     case 1:
-//         break;
-//     default:
-//         break;
-// }
+switch ; a
+{
+    case 1: break;
+}
+
+switch var b int32; a
+{
+    case 1:
+        break;
+    default:
+        break;
+}

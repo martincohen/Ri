@@ -1,149 +1,74 @@
 (scope 27
-  (decl
-    (spec-var 'a'
-      (value-type
-        (spec-type-number 'float64')
-      )
-    )
-  )
   (code
     (decl
       (spec-var 'a'
-        (value-type
-          (spec-type-number 'float64')
-        )
+        (id 'float64')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 0.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 72.400000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 72.400000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 2.718280
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 1.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 0.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 1000000.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 0.250000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 12345.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 15.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
     (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'float64')
-          )
-        )
-      )
+      (id 'a')
       (const 15.000000
-        (spec-type-number 'float64')
+        (spec-type-number 'untyped-real')
       )
     )
   )

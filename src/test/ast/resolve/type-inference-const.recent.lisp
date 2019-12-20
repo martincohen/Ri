@@ -1,4 +1,4 @@
-(scope 26
+(scope 27
   (decl
     (spec-var 'i32'
       (value-type

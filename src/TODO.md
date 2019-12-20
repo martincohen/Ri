@@ -2,44 +2,6 @@
 
 See README.md for high-level tasks.
 
-# Declarations
-
-- Value
-    - Spec: Function
-- Value
-    - Spec: Variable
-- Value
-    - Spec: Type
-
-
-
-## Done
-
-- [x] Proper file name error.
-- [x] Errors
-    - [x] Full error reporting.
-        - [x] Pass position.
-        - [x] Show full error.
-- [x] Refactor `Type`
-    - [x] Implement instance of a function as a pointer to `Type_Func`.
-    - [x] Implement a `Decl_Type` node.
-    - [x] Implement a `Type` node.
-- [x] Generate `Ref` node after every `Decl` node has been resolved.
-    - Rename it to `Symbol`
-    - It will reference the finally resolved node and the original decl.
-    - Will hold the position of the instance.
-- [x] Get rid of `Ref` node type?
-    - It's a "marker" of where the decl was.
-    - NO: We'll need it to refer to the declaration, but still hold information about the place of use (like position).
-- [x] Explicit casting `int32(expr)`
-    - Parsed as call, resolved as a `(expr-cast type expr)`
-- [x] Bitwise operators should only work with int* types (no bool).
-    - `x & false (operator & not defined on bool)`
-- [x] Allow casting bool to int and float
-- [x] `bool` is 8 bit
-- [x] Actual type checking done for expressions:
-- [x] Type checking for everything except function arguments.
-
 ## Next
 
 ### VM
@@ -49,43 +11,49 @@ See README.md for high-level tasks.
 - [x] Draft values (var, const)
 - [x] Draft `+` binary operator
 - [x] Draft `if` compile
+- [x] Support for constant types? (resolved in AST)
+- [x] Draft calls
 
+- [ ] Merge `call` and `arg-pop-n`.
 - [ ] Fix bug in AST (see bellow), then enable `op-binary` tests.
 - [ ] Compile "root" as module-init function.
 - [ ] Draft constant folding
-- [ ] Draft calls
-    - `Push <value>`
-    - `Push <value>`
-    - `Push <value>`
-    - `Call <func>`
-    - `Drop <count>`
 - [ ] Draft VM execution
 - [ ] Draft x64 compilation
 
 ### AST
 
+- [x] Ignore named return values.
+
+- [ ] Check for compatible types when casting consts.
+- [ ] If the function doesn't return anything, `return` should have no arguments.
+- [ ] Type checking
+    - [x] Basic type checking.
+    - [x] Constant implicit casting.
+    - [x] Type checking for `return`.
+    - [ ] Type checking for `for`.
+    - [ ] Type checking for `if`.
+    - [ ] Type checking for `switch`.
+    - [ ] Type checking for calls.
+    - [ ] Type inference for variable declarations `var x = <expr>;`.
+
 - [ ] Limit use of `=` for type inference, so we can't do `var a += 1`, which is now legal.
 - [ ] Limit use of `Type_Infer` variables before they are actually declared and assigned.
     - Is this actual "uninitialized use of variable" protection?
-- [ ] `typecheck` phase:
-    - [x] Constant type inference infrastructure
-    - [ ] Implement `var x = <expr>;` for type inference.
-    - [ ] In `resolve` phase make sure declarations in assignments are processed.
-    - [ ] Allow multiple errors in `typecheck` phase.
-        - `ri_error_add_` will add an error.
-        - Change `ri_error_set_` to `ri_fatal_set_`
-    - [ ] Move type checks to `typecheck` phase.
-        - `ri_resolve_expr_call_type_`
-    - [ ] Type checking for calls.
 - [ ] Text ranges in nodes:
     - `RiToken` to also hold Range or at least `length`
     - `RiNode` will contain pos + length caclulated from the token.
-- [x] Integer constants
-- [x] Typed constants
-- [ ] Named typed constants
-- [ ] Real constants
-- [ ] String constants
-- [ ] Initializer constants
+- Constants
+    - [x] Integer constants
+    - [x] Typed constants
+    - [ ] Named typed constants
+    - [ ] Real constants
+    - [ ] String constants
+    - [ ] Struct initializer constants
+    - [ ] Union initializer constants
+- [ ] Allow multiple errors in `typecheck` phase.
+    - `ri_error_add_` will add an error.
+    - Change `ri_error_set_` to `ri_fatal_set_`
 
 - [ ] Parsing type spec.
     - Parsing `func (...) (...)` as function type spec.
@@ -95,8 +63,14 @@ See README.md for high-level tasks.
     - `type <name> = <other-name>` for declaring type that implicitly casts to `other-name`
     ` `type <name> <other-name>` for declaring new type that has same semantics, but doesn't implicitly cast to `other-name`
 - [ ] Implement decl+assigment `var a int32 = b;`
-- [ ] Implement `switch..case` statement
-    - Use `break` or `fallthrough`?
+- [x] Implement `switch..case` statement
+    - [ ] Use `fallthrough` instead of `break`?
+        - Pro: `break` will be then unique to `for`.
+
+- [ ] `Pointer`
+- [ ] `Struct`
+- [ ] `Union`
+- [ ] `Enum`
 
 - [ ] Packages
     - Directory works as a package
@@ -107,11 +81,9 @@ See README.md for high-level tasks.
         - Tests can still access these (compiler only issues a warning).
         - Are test going to be part of the package? Would make sense.
 - [ ] Get rid of need for semicolon after `{...}` in function parser.
-- [ ] Type checking for call arguments.
 - [ ] Warnings
 
 - [ ] Testing error states.
-- [ ] Implement `Type_Pointer`.
 
 # Read
 
@@ -141,10 +113,22 @@ See README.md for high-level tasks.
         - `var main function(...)`
         - `main = { ... }`
 
+## Compiler
+
+GOAL: Three-address code bytecode.
+
+- [x] Baseline compiler infrastructure.
+- [ ] Call compilation.
+- [ ] Enable per-function compilation so we can try compile-time execution.
+
 ## Interpreter
 
-- Compile first to WASM.
-- Compile to straightforward x64
+GOAL: Interprets three-address code in a straightforward manner. (baseline performance)
+
+- [ ] Call interpretation.
+    - [ ] Calling functions with `rivm_exec(func, ...)`.
+
+### Interpreter / Later
 - Register allocation
     - 2 variants:
         a) Allocate all parameters in registers, the rest goes to memory.
@@ -167,3 +151,52 @@ See README.md for high-level tasks.
 - Slice
     - `[]int`
     - Syntax sugar for `struct { T* items; iptr count; }`
+- Do we want `??` operator?
+    - https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-coalescing-operator
+- Compound math types
+    - I learnt the other week that it's called level 1 BLAS (basic linear algebra system). Level 2 is matrix vector multiplication. Level 3 is matrix matrix multiplication
+    - We'd need a fixed-count slice for this to work.
+
+    - Difference between
+        - static size slice with items allocated on stack
+        - infered-but-static size slice with items allocated on stack
+        - dynamic size
+
+struct T {
+    var items T;
+    const count int64 = 2;
+}
+
+```go
+
+var a []float;
+var b (2)float;
+var c ()float = { ... };
+
+var a []float;
+var b [2]float;
+var c [*]float = { ... };
+
+var a Slice(float);
+var b [2]float;
+b = { 1, 2 };
+var c []float = { ... };
+
+
+// Impossible because `[]type` is slice.
+const a [*]float = {
+    1, 2, 3
+}
+// Type-infered constant.
+const a [] = {
+    1, 2, 3
+}
+
+
+var a, b [2]float32;
+var c = a * b;
+
+type Vector2 [2]float32;
+var a, b Vector2;
+var c = a + b;
+```

@@ -185,8 +185,8 @@ void log_assert_(const char *message, const char *expression, const char *functi
     #define FAIL(message, ...) ABORT()
 #endif
 
-#if !defined(BUILD_RELEASE)
-// #if 0
+// #if !defined(BUILD_RELEASE)
+#if 1
     static const char* LOG_LEVELS[] = {
         "[error]",
         "[ info]",
@@ -432,7 +432,6 @@ Range;
             (It) < (Slice)->count && slice_at(Slice, (It)) != Needle; \
             (It) = (It) + 1)                                          \
             ;                                                         \
-                                                                      \
         if ((It) == (Slice)->count)                                   \
         {                                                             \
             (It) = -1;                                                \

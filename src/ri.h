@@ -14,7 +14,7 @@ typedef struct RiPos RiPos;
 typedef struct RiError RiError;
 typedef struct RiStream RiStream;
 typedef struct RiToken RiToken;
-typedef struct RiLiteral RiLiteral;
+typedef union RiLiteral RiLiteral;
 typedef struct RiNode RiNode;
 typedef struct RiNodeMeta RiNodeMeta;
 typedef struct RiScope RiScope;
@@ -24,6 +24,9 @@ typedef enum RiTokenKind RiTokenKind;
 typedef enum RiNodeKind RiNodeKind;
 typedef enum RiDeclState RiDeclState;
 typedef enum RiTypeCompleteness RiTypeCompleteness;
+typedef enum RiVarKind RiVarKind;
+
+#define RI_INVALID_SLOT (-1)
 
 //
 //
@@ -106,6 +109,7 @@ enum RiTokenKind
     RiToken_Dot,
     RiToken_Comma,
     RiToken_Semicolon,
+    RiToken_Colon,
 
     RiToken_Plus,
     RiToken_Minus,
@@ -225,6 +229,8 @@ enum RiNodeKind
         RiNode_Spec_Var,
         RiNode_Spec_Func,
         RiNode_Spec_Type_FIRST__,
+            // Used to denote a node that returns void (like statements).
+            RiNode_Spec_Type_None,
             // Used with `var a = 1` to set a's type to Infer.
             RiNode_Spec_Type_Infer,
             RiNode_Spec_Type_Func,
@@ -366,12 +372,30 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
 #define ri_is_expr_like(NodeKind) \
     (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Const))
 
-struct RiLiteral {
+//
+//
+//
+
+enum RiVarKind {
+    RiVar_Local,
+    RiVar_Input,
+    RiVar_Output,
+};
+
+//
+//
+//
+
+union RiLiteral {
     uint64_t integer;
     double real;
     String string;
     bool boolean;
 };
+
+//
+//
+//
 
 struct RiNode
 {
@@ -406,12 +430,16 @@ struct RiNode
                 struct {
                     RiNode* type;
                     RiNode* scope;
+                    // Used by compiler.
+                    // RI_INVALID_SLOT by default.
+                    uint32_t slot;
                 } func;
 
                 struct {
                     RiNode* type;
+                    RiVarKind kind;
                     // Used by compiler.
-                    // TODO: Make extensible by a custom type.
+                    // RI_INVALID_SLOT by default.
                     uint32_t slot;
                 } var;
 
@@ -457,6 +485,7 @@ struct RiNode
             RiNodeArray arguments;
         } call;
 
+        // A constant or reference to a spec used in expressions (var, func, type,...)
         struct {
             RiNode* spec;
             RiNode* type;
@@ -495,9 +524,13 @@ struct RiNode
 
         struct {
             RiNode* pre;
-            RiNode* condition;
+            RiNode* expr;
             RiNode* scope;
         } st_switch;
+
+        struct {
+            RiNode* expr;
+        } st_switch_case;
 
         RiNode* st_expr;
     };
@@ -548,6 +581,8 @@ struct Ri {
     const char* id_true;
     const char* id_false;
     const char* id_nil;
+
+    const char* id_underscore; // _
 
     RiNodeMeta node_meta[RiNode_COUNT__];
 

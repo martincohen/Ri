@@ -1,7 +1,7 @@
-#include "rivmc.h"
+#include "rivm-compiler.h"
 
 void
-testrivmc_compile_file_(const char* name)
+testrivm_compiler_compile_file_(const char* name)
 {
     LOG("'%s': testing", name);
 
@@ -33,13 +33,13 @@ testrivmc_compile_file_(const char* name)
     }
 
 
-    RiVmCompiler rix;
-    rivm_init(&rix, &ri);
-    RiVmModule* module = rivm_compile(&rix, ast_module);
-    ASSERT(module);
+    RiVmModule module;
+    RiVmCompiler compiler;
+    rivm_init(&compiler, &ri);
+    ASSERT(rivm_compile(&compiler, ast_module, &module));
 
     CharArray actual = {0};
-    rivm_dump_module(&rix, module, &actual);
+    rivm_dump_module(&module, &actual);
 
     if (expected.items != NULL) {
         if (!string_is_equal(S(expected.items, expected.count), actual.slice)) {
@@ -61,21 +61,21 @@ testrivmc_compile_file_(const char* name)
     array_purge(&actual);
     array_purge(&expected);
 
-    rivm_purge(&rix);
+    rivm_purge(&compiler);
     ri_purge(&ri);
 }
 
 void
-testrivmc_compile()
+testrivm_compiler_compile()
 {
-    testrivmc_compile_file_("func");
-    testrivmc_compile_file_("if");
-    testrivmc_compile_file_("if-else");
+    testrivm_compiler_compile_file_("func");
+    testrivm_compiler_compile_file_("if");
+    testrivm_compiler_compile_file_("if-else");
     // TODO: Fix the bug in TODO.md first.
-    testrivmc_compile_file_("op-binary");
+    testrivm_compiler_compile_file_("op-binary");
 }
 
 void
-testrivmc_main() {
-    testrivmc_compile();
+testrivm_compiler_main() {
+    testrivm_compiler_compile();
 }
