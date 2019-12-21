@@ -2,7 +2,7 @@
 #include "rivm-interpreter.h"
 
 RiVmValue
-testrivm_interpreter_exec_file_(const char* name)
+testrivm_interpreter_exec_file_(const char* name, void* host)
 {
     RiVmModule module;
     rivm_module_init(&module);
@@ -11,7 +11,7 @@ testrivm_interpreter_exec_file_(const char* name)
     chararray_push_f(&path_source, "./src/test/vmi/%s.ri", name);
     array_zero_term(&path_source);
 
-    rivm_compile_file(path_source.slice, &module);
+    rivm_compile_file(path_source.slice, &module, host);
     
     RiVmExec context;
     rivm_exec_init(&context);
@@ -37,7 +37,8 @@ testrivm_interpreter_exec_file_(const char* name)
 void
 testrivm_interpreter_exec() {
     // ASSERT(testrivm_interpreter_exec_file_("test1").i32 == 2);
-    ASSERT(testrivm_interpreter_exec_file_("fib34").i32 == 5702887);
+    // ASSERT(testrivm_interpreter_exec_file_("fib34", 0).i32 == 5702887);
+    ASSERT(testrivm_interpreter_exec_file_("host", (void*)(uint64_t)(-1)).u64 == (uint64_t)(-1));
 }
 
 void

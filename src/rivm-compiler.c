@@ -118,7 +118,7 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
                 RI_CHECK(inst.param2.kind == RiVmParam_Imm);
                 break;
 
-            case RiVmOp_ArgPush:
+            case RiVmOp_Arg:
                 RI_CHECK(inst.param0.kind != RiVmParam_None);
                 break;
 
@@ -232,8 +232,12 @@ rivm_get_type_(RiVmCompiler* compiler, RiNode* ast_spec_type)
             return RiVmValue_U32;
         case RiNode_Spec_Type_Number_Int32:
             return RiVmValue_I32;
+        case RiNode_Spec_Type_Number_UInt32:
+            return RiVmValue_U32;
         case RiNode_Spec_Type_Number_Int64:
             return RiVmValue_I64;
+        case RiNode_Spec_Type_Number_UInt64:
+            return RiVmValue_U64;
     }
     RI_UNREACHABLE;
     return RiVmValue_None;
@@ -289,7 +293,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
     RI_ASSERT(
         ri_is_in(ast_expr->kind, RiNode_Expr) ||
         ast_expr->kind == RiNode_Value_Var ||
-        ast_expr->kind == RiNode_Value_Const
+        ast_expr->kind == RiNode_Value_Constant
     );
 
     if (ri_is_in(ast_expr->kind, RiNode_Expr_Binary)) {
@@ -318,7 +322,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 for (iptr i = 0; i < arguments->count; ++i)
                 {
                     RiVmParam arg = rivm_compile_expr_(compiler, arguments->items[i]);
-                    rivm_code_emit(&compiler->code, ArgPush, arg);
+                    rivm_code_emit(&compiler->code, Arg, arg);
                     rivm_release_slot_(compiler, arg);
                 }
 
@@ -331,7 +335,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 //     result = rivm_acquire_slot_(compiler, RiSlot_Temporary, RiVmValue_I32);
                 //     RiVmParam result_addr = rivm_acquire_slot_(compiler, RiSlot_Temporary, RiVmValue_U64);
                 //     rivm_code_emit(&compiler->code, AddrOf, result_addr, result);
-                //     rivm_code_emit(&compiler->code, ArgPush, result_addr);
+                //     rivm_code_emit(&compiler->code, Arg, result_addr);
                 // }
 
                 RiVmParam result = result = rivm_acquire_slot_(compiler, RiSlot_Temporary, RiVmValue_I32);
@@ -354,14 +358,18 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
             case RiNode_Value_Var:
                 return rivm_get_param_(compiler, ast_expr);
 
-            case RiNode_Value_Const: {
+            case RiNode_Value_Constant: {
                 RiVmValueType type = rivm_get_type_from_expr_(compiler, ast_expr);
                 switch (type)
                 {
                     case RiVmValue_I32:
                         return rivm_make_param(Imm, .type = type, .imm.i32 = (int32_t)ast_expr->value.constant.integer);
+                    case RiVmValue_U32:
+                        return rivm_make_param(Imm, .type = type, .imm.u32 = (uint32_t)ast_expr->value.constant.integer);
                     case RiVmValue_I64:
                         return rivm_make_param(Imm, .type = type, .imm.i64 = (int64_t)ast_expr->value.constant.integer);
+                    case RiVmValue_U64:
+                        return rivm_make_param(Imm, .type = type, .imm.u64 = (uint64_t)ast_expr->value.constant.integer);
                     default:
                         RI_UNREACHABLE;
                         break;
@@ -564,10 +572,10 @@ rivm_compile(RiVmCompiler* compiler, RiNode* ast_module, RiVmModule* module)
 //
 
 bool
-rivm_compile_file(String path, RiVmModule* module)
+rivm_compile_file(String path, RiVmModule* module, void* host)
 {
     Ri ri;
-    ri_init(&ri);
+    ri_init(&ri, host);
     CharArray out = {0};
 
     RiNode* ast_module = NULL;

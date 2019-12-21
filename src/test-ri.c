@@ -11,7 +11,7 @@ testri_token_equals(RiToken* actual, String expected) {
 void
 testri_lex_print() {
     Ri ri;
-    ri_init(&ri);
+    ri_init(&ri, 0);
     ri_stream_set_(&ri, S("func main(a int32)"));
 
     while (ri.token.kind != RiToken_End) {
@@ -35,7 +35,7 @@ testri_next_token_equals(Ri* ri, RiTokenKind expected_kind, String expected) {
 void
 testri_lex() {
     Ri ri;
-    ri_init(&ri);
+    ri_init(&ri, 0);
     ri_stream_set_(&ri, S("func main(a int32)"));
 
     testri_next_token_equals(&ri, RiToken_Keyword_Func, S("func"));
@@ -52,7 +52,7 @@ testri_lex() {
 void
 testri_parse() {
     Ri ri;
-    ri_init(&ri);
+    ri_init(&ri, 0);
 
     RiNode* node = ri_parse(&ri, S(
         "func main(var a int32);"
@@ -74,7 +74,7 @@ testri_file_(const char* name, TestRiMode mode)
     LOG("'%s': testing", name);
 
     Ri ri;
-    ri_init(&ri);
+    ri_init(&ri, 0);
 
     RiNode* node = NULL;
     {

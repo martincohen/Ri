@@ -1,5 +1,4 @@
 RIVM_INST(None, "none")
-
 RIVM_INST(Nop, "nop")
 
 RIVM_INST(Enter, "enter")
@@ -7,6 +6,11 @@ RIVM_INST(Ret, "ret")
 
 // Assign(A = B)
 RIVM_INST(Assign, "assign")
+
+//
+// Memory
+//
+
 // Store(Memory[A + B] = C)
 // Stores sizeof(B) bytes to memory address A + C.
 RIVM_INST(Store, "store")
@@ -16,10 +20,13 @@ RIVM_INST(Load, "load")
 // A = AddrOf(B)
 RIVM_INST(AddrOf, "addr-of")
 
+//
+// Calls
+//
+
 // Arg(Value)
 // Pushes Value to the stack.
-RIVM_INST(ArgPush, "arg-push")
-
+RIVM_INST(Arg, "arg")
 // A = Call(Func B, Imm C)
 // Calls function B, sets result to A, pops C arguments pushed with ArgPush.
 // If A.Type == None, result is ignored.
@@ -28,10 +35,41 @@ RIVM_INST(Call,  "call")
 // Same as above, except B is a pointer to a C function we call via system's native calling convention.
 RIVM_INST(CallC, "call-c")
 
+//
+// Control
+//
+
 // (goto A)
 RIVM_INST(GoTo, "goto")
 // (if (A == 0) goto B else goto C)
 RIVM_INST(If, "if")
+
+//
+// Arithmetic
+//
+
+// TODO: Param kind suffix: (2bit)
+// I = 0
+// S = 1
+// ---
+// - `II` b00
+// - `IS` b01
+// - `SI` b10
+// - `SS` b11
+
+// TODO: Type suffix (3bits)
+// U  = 000
+// I  = 010
+// F  = 100
+// 32 = 000
+// 64 = 001
+// ---
+// - `U32` b000
+// - `I32` b010
+// - `U64` b001
+// - `I64` b011
+// - `F32` b100
+// - `F64` b101
 
 RIVM_GROUP_START(Binary)
     RIVM_INST(Binary_Add, "+")

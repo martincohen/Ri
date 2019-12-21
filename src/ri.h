@@ -227,6 +227,7 @@ enum RiNodeKind
 
     RiNode_Spec_FIRST__,
         RiNode_Spec_Var,
+        RiNode_Spec_Constant,
         RiNode_Spec_Func,
         RiNode_Spec_Type_FIRST__,
             // Used to denote a node that returns void (like statements).
@@ -275,7 +276,7 @@ enum RiNodeKind
         RiNode_Value_Var,
         RiNode_Value_Func,
         RiNode_Value_Type,
-        RiNode_Value_Const,
+        RiNode_Value_Constant,
     RiNode_Value_LAST__,
 
     RiNode_Expr_FIRST__,
@@ -370,7 +371,7 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
     ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
 
 #define ri_is_expr_like(NodeKind) \
-    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Const))
+    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Constant))
 
 //
 //
@@ -391,6 +392,7 @@ union RiLiteral {
     double real;
     String string;
     bool boolean;
+    void* pointer;
 };
 
 //
@@ -594,7 +596,7 @@ struct Ri {
 //
 
 
-void ri_init(Ri* ri);
+void ri_init(Ri* ri, void* host);
 void ri_purge(Ri* ri);
 void ri_log(Ri* ri, RiNode* node);
 RiNode* ri_parse(Ri* ri, String stream, String path);

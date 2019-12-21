@@ -1,12 +1,12 @@
 #include "rivm-compiler.h"
 
 void
-testrivm_compiler_compile_file_(const char* name)
+testrivm_compiler_compile_file_(const char* name, void* host)
 {
     LOG("'%s': testing", name);
 
     Ri ri;
-    ri_init(&ri);
+    ri_init(&ri, host);
 
     RiNode* ast_module = NULL;
     {
@@ -68,11 +68,11 @@ testrivm_compiler_compile_file_(const char* name)
 void
 testrivm_compiler_compile()
 {
-    testrivm_compiler_compile_file_("func");
-    testrivm_compiler_compile_file_("if");
-    testrivm_compiler_compile_file_("if-else");
+    testrivm_compiler_compile_file_("func", 0);
+    testrivm_compiler_compile_file_("if", 0);
+    testrivm_compiler_compile_file_("if-else", 0);
     // TODO: Fix the bug in TODO.md first.
-    testrivm_compiler_compile_file_("op-binary");
+    testrivm_compiler_compile_file_("op-binary", 0);
 }
 
 void

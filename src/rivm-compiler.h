@@ -28,4 +28,4 @@ struct RiVmCompiler
 void rivm_init(RiVmCompiler* rix, Ri* ri);
 void rivm_purge(RiVmCompiler* rix);
 bool rivm_compile(RiVmCompiler* rix, RiNode* ast_module, RiVmModule* module);
-bool rivm_compile_file(String path, RiVmModule* module);
+bool rivm_compile_file(String path, RiVmModule* module, void* host);

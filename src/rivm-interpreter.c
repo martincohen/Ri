@@ -63,7 +63,7 @@ rivm_stack_pop(RiVmStack* stack, iptr count)
         (Param).slot.index \
     ]
 
-#define binary_op_tt(Member, TT, Op) \
+#define binary_op_tt_(Member, TT, Op) \
     switch (TT) { \
         case RiVmParam_SlotSlot: get_local(inst->param0). ## Member = get_local(inst->param1). ## Member Op get_local(inst->param2). ## Member; break; \
         case RiVmParam_SlotImm:  get_local(inst->param0). ## Member = get_local(inst->param1). ## Member Op inst->param2.imm. ## Member; break; \
@@ -72,15 +72,29 @@ rivm_stack_pop(RiVmStack* stack, iptr count)
         default: RI_UNREACHABLE; break; \
     }
 
+#define binary_op_i_(TT, Op) \
+    case RiVmValue_I32: binary_op_tt_(i32, TT, Op); break; \
+    case RiVmValue_I64: binary_op_tt_(i64, TT, Op); break; \
+    case RiVmValue_U32: binary_op_tt_(u32, TT, Op); break; \
+    case RiVmValue_U64: binary_op_tt_(u64, TT, Op); break;
+
+#define binary_op_f_(TT, Op) \
+    case RiVmValue_F32: binary_op_tt_(f32, TT, Op); break; \
+    case RiVmValue_F64: binary_op_tt_(f64, TT, Op); break;
+
 #define binary_op(Op) { \
         int tt = RIVMPARAMKIND_PAIR(inst->param1.kind, inst->param2.kind); \
         switch (inst->param0.type) { \
-            case RiVmValue_I32: binary_op_tt(i32, tt, Op); break; \
-            case RiVmValue_I64: binary_op_tt(i64, tt, Op); break; \
-            case RiVmValue_U32: binary_op_tt(u32, tt, Op); break; \
-            case RiVmValue_U64: binary_op_tt(u64, tt, Op); break; \
-            case RiVmValue_F32: binary_op_tt(f32, tt, Op); break; \
-            case RiVmValue_F64: binary_op_tt(f64, tt, Op); break; \
+            binary_op_i_(tt, Op) \
+            binary_op_f_(tt, Op) \
+            default: RI_UNREACHABLE; break; \
+        } \
+    }
+
+#define binary_op_i(Op) { \
+        int tt = RIVMPARAMKIND_PAIR(inst->param1.kind, inst->param2.kind); \
+        switch (inst->param0.type) { \
+            binary_op_i_(tt, Op) \
             default: RI_UNREACHABLE; break; \
         } \
     }
@@ -133,7 +147,7 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
                 }
                 break;
 
-            case RiVmOp_ArgPush: {
+            case RiVmOp_Arg: {
                 switch (inst->param0.kind)
                 {
                     case RiVmParam_Imm:
@@ -151,6 +165,35 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
                 RiVmValue callee_result = rivm_exec_(context, context->stack.it - inst->param2.imm.u64, callee_func);
                 get_local(inst->param0).u64 = callee_result.u64;
                 rivm_stack_pop(&context->stack, inst->param2.imm.u64);
+            } break;
+
+            case RiVmOp_CallC: {
+                __debugbreak();
+
+                void* callee_func = inst->param1.func;
+                // NOTE: Return type is given by type of the result slot, so compiler has to make sure that the type is correct and do casting/masking needed afterwards.
+                uint64_t args_count = inst->param2.imm.u64;
+#if defined(SYSTEM_WINDOWS)
+                // NOTE: On windows dcall is written so it's reading 4 arguments past the args pointer, so we fill in space on stack.
+                rivm_stack_push(&context->stack, MAXIMUM(0, 4 - args_count));
+#else
+    #error Unsupported platform.
+#endif
+                uint64_t args_stack_count = MAXIMUM(0, (int64_t)args_count - 4);
+                RiVmValue* args = context->stack.it - args_count;
+                if (inst->param0.kind == RiVmParam_None) {
+                    ((RiVmDCallI64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func);
+                }
+                else switch (inst->param0.type)
+                {
+                    // Return is always delivered in `RAX`.
+                    case RiVmValue_I64: case RiVmValue_I32: get_local(inst->param0).i64 = ((RiVmDCallI64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
+                    case RiVmValue_U64: case RiVmValue_U32: get_local(inst->param0).u64 = ((RiVmDCallU64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
+                    case RiVmValue_F64: get_local(inst->param0).f64 = ((RiVmDCallF64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
+                    case RiVmValue_F32: get_local(inst->param0).f32 = ((RiVmDCallF32*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
+                    default: RI_UNREACHABLE; break;
+                }
+                rivm_stack_pop(&context->stack, args_count + MAXIMUM(0, 4 - args_count));
             } break;
 
             case RiVmOp_If: {
@@ -176,6 +219,16 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
 
             case RiVmOp_Binary_Add: binary_op(+); break;
             case RiVmOp_Binary_Sub: binary_op(-); break;
+            case RiVmOp_Binary_Mul: binary_op(*); break;
+            case RiVmOp_Binary_Div: binary_op(/); break;
+            case RiVmOp_Binary_Mod: binary_op_i(%); break;
+            case RiVmOp_Binary_BXor: binary_op_i(^); break;
+            case RiVmOp_Binary_BAnd: binary_op_i(&); break;
+            case RiVmOp_Binary_BOr: binary_op_i(|); break;
+            case RiVmOp_Binary_BShL: binary_op_i(<<); break;
+            case RiVmOp_Binary_BShR: binary_op_i(>>); break;
+            case RiVmOp_Binary_And: binary_op(&&); break;
+            case RiVmOp_Binary_Or: binary_op(||); break;
             case RiVmOp_Binary_Comparison_Lt: binary_op(<); break;
             case RiVmOp_Binary_Comparison_Gt: binary_op(<); break;
             case RiVmOp_Binary_Comparison_LtEq: binary_op(<=); break;

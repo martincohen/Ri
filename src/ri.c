@@ -680,7 +680,7 @@ ri_retof_(Ri* ri, RiNode* node)
                     return NULL;
                 }
                 break;
-            case RiNode_Value_Const:
+            case RiNode_Value_Constant:
                 RI_CHECK(node->value.type);
                 return node->value.type;
             // case RiNode_Expr_Literal_Real:
@@ -872,6 +872,18 @@ ri_make_spec_func_(Ri* ri, RiPos pos, String id, RiNode* type, RiNode* scope)
     node->spec.func.scope = scope;
     node->spec.func.slot = RI_INVALID_SLOT;
     return node;
+}
+
+static RiNode*
+ri_make_spec_constant_(Ri* ri, RiPos pos, String id, RiNode* type, RiLiteral value)
+{
+    RI_CHECK(type);
+    RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type_Number));
+    RiNode* spec = ri_make_node_(ri, pos, RiNode_Spec_Constant);
+    spec->spec.id = id;
+    spec->spec.constant.type = type;
+    spec->spec.constant.value = value;
+    return spec;
 }
 
 static RiNode*
@@ -1082,7 +1094,7 @@ ri_parse_expr_operand_(Ri* ri)
         } break;
 
         case RiToken_Integer: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const);
+            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
             node->value.constant.integer = ri->token.integer;
             node->value.type = ri->node_meta[RiNode_Spec_Type_Number_None_Int].node;
             if (ri_lex_next_(ri)) {
@@ -1092,7 +1104,7 @@ ri_parse_expr_operand_(Ri* ri)
         } break;
 
         case RiToken_Real: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const);
+            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
             node->value.constant.real = ri->token.real;
             node->value.type = ri->node_meta[RiNode_Spec_Type_Number_None_Real].node;
             if (ri_lex_next_(ri)) {
@@ -1106,7 +1118,7 @@ ri_parse_expr_operand_(Ri* ri)
 
         case RiToken_Keyword_False:
         case RiToken_Keyword_True: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Const);
+            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
             node->value.constant.boolean = (ri->token.kind == RiToken_Keyword_True);
             node->value.type = ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
             if (ri_lex_next_(ri)) {
@@ -2439,6 +2451,12 @@ static RI_RESOLVE_F_(ri_resolve_identifier_)
             id->value.spec = decl->decl.spec;
             id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.var.type);
             break;
+        case RiNode_Spec_Constant:
+            id->kind = RiNode_Value_Constant;
+            id->value.spec = decl->decl.spec;
+            id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.constant.type);
+            id->value.constant = decl->decl.spec->spec.constant.value;
+            break;
         case RiNode_Spec_Func:
             id->kind = RiNode_Value_Func;
             id->value.spec = decl->decl.spec;
@@ -2529,7 +2547,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
                 array_push(&ri->pending, n->spec.func.scope);
                 return true;
 
-            case RiNode_Value_Const:
+            case RiNode_Value_Constant:
             case RiNode_Value_Type:
             case RiNode_Value_Func:
             case RiNode_Value_Var: {
@@ -2609,7 +2627,7 @@ ri_typecheck_cast_const_(Ri* ri, RiNode* expr, RiNode* type)
         ri_typecheck_cast_const_(ri, expr->binary.argument1, type);
     } else if (ri_is_in(expr->kind, RiNode_Expr_Unary)) {
         ri_typecheck_cast_const_(ri, expr->unary.argument, type);
-    } else if (expr->kind == RiNode_Value_Const) {
+    } else if (expr->kind == RiNode_Value_Constant) {
         // TODO: We need to be sure that the const type can actually be implicitly cast to `type`.
         RI_ASSERT(ri_is_in(expr->value.type->kind, RiNode_Spec_Type_Number_None));
         expr->value.type = type;
@@ -2916,7 +2934,7 @@ ri_dump_block_(RiDump_* D, RiNode* node, const char* block)
 }
 
 static const char* RI_NODEKIND_NAMES_[RiNode_COUNT__] = {
-    [RiNode_Value_Const] = "const",
+    [RiNode_Value_Constant] = "const",
     [RiNode_Expr_Cast] = "expr-cast",
     [RiNode_Expr_Unary_Positive] = "expr-positive",
     [RiNode_Expr_Unary_Negative] = "expr-negative",
@@ -3108,7 +3126,7 @@ ri_dump_(RiDump_* D, RiNode* node)
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
-            case RiNode_Value_Const: {
+            case RiNode_Value_Constant: {
                 riprinter_print(&D->printer, "(const ");
                 switch (node->value.type->kind) {
                     case RiNode_Spec_Type_Number_Int8:
@@ -3200,7 +3218,7 @@ ri_log(Ri* ri, RiNode* node)
 //
 
 void
-ri_init(Ri* ri)
+ri_init(Ri* ri, void* host)
 {
     // RI_LOG_DEBUG("node %d bytes", sizeof(RiNode));
 
@@ -3277,6 +3295,17 @@ ri_init(Ri* ri)
         DECL_TYPE("float64",    Number_Float64);
 
     #undef DECL_TYPE
+
+    ri_scope_set_(ri,
+        ri_make_decl_(ri, RI_POS_OUTSIDE,
+            ri_make_spec_constant_(ri,
+                RI_POS_OUTSIDE,
+                ri_make_id_(ri, S("host")),
+                ri->node_meta[RiNode_Spec_Type_Number_UInt64].node,
+                (RiLiteral){ .pointer = host }
+            )
+        )
+    );
 }
 
 void
