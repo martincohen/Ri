@@ -616,6 +616,12 @@ ri_get_spec_(Ri* ri, RiNode* node)
     return spec;
 }
 
+//
+// Comparing types
+//
+
+static bool ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1);
+
 static bool
 ri_compare_function_arg_types_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
 {
@@ -623,14 +629,14 @@ ri_compare_function_arg_types_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
         return false;
     }
 
-    for (int i = 0; i < t0->spec.type.func.inputs.count, ++i) {
+    for (int i = 0; i < a0->count; ++i) {
         RiNode* it0 = a0->items[i];
-        RiNode* it1 = a0->items[i];
-        RI_CHECK(it0->kind, RiNode_Decl);
-        RI_CHECK(it0->decl.spec->kind, RiNode_Spec_Var);
-        RI_CHECK(it1->kind, RiNode_Decl);
-        RI_CHECK(it1->decl.spec->kind, RiNode_Spec_Var);
-        if (ri_compare_types_(ri, ri_get_spec_(it0->decl.spec->spec.var.type), ri_get_spec_(it1->decl.spec->spec.var.type)) == false) {
+        RiNode* it1 = a1->items[i];
+        RI_CHECK(it0->kind == RiNode_Decl);
+        RI_CHECK(it0->decl.spec->kind == RiNode_Spec_Var);
+        RI_CHECK(it1->kind == RiNode_Decl);
+        RI_CHECK(it1->decl.spec->kind == RiNode_Spec_Var);
+        if (ri_compare_types_(ri, ri_get_spec_(ri, it0->decl.spec->spec.var.type), ri_get_spec_(ri, it1->decl.spec->spec.var.type)) == false) {
             return false;
         }
     }
@@ -660,15 +666,33 @@ ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1)
             return ri_compare_types_(ri, t0->spec.type.pointer.base, t1->spec.type.pointer.base);
 
         case RiNode_Spec_Type_None:
-            break;
+            return true;
 
         case RiNode_Spec_Type_Infer:
         default:
             RI_UNREACHABLE;
-            break;
+            return false;
     }
-    return true;
 }
+
+static void
+ri_mark_identical_type_(Ri* ri, RiNode* node)
+{
+    RI_CHECK(ri_is_in(node->kind, RiNode_Spec_Type));
+    RiNode* it;
+    array_eachi(&ri->types, i, &it) {
+        if (ri_compare_types_(ri, it, node)) {
+            node->spec.type.identical = it;
+            return;
+        }
+    }
+    array_push(&ri->types, node);
+    node->spec.type.identical = node;
+}
+
+//
+// Completing types
+//
 
 static RiNode*
 ri_complete_type_(Ri* ri, RiPos pos, RiNode* type)
@@ -714,6 +738,9 @@ ri_complete_type_(Ri* ri, RiPos pos, RiNode* type)
     return type;
 }
 
+//
+// Getting types
+//
 
 static RiNode*
 ri_retof_(Ri* ri, RiNode* node)
@@ -789,6 +816,10 @@ ri_retof_(Ri* ri, RiNode* node)
         return NULL;
     }
 }
+
+//
+// Size and align
+//
 
 static uint64_t
 ri_sizeof_(Ri* ri, RiPos pos, RiNode* type)
@@ -887,6 +918,10 @@ ri_make_identifier_(Ri* ri, RiPos pos, String name)
     return node;
 }
 
+//
+// Variable
+//
+
 static RiNode*
 ri_make_spec_var_(Ri* ri, RiPos pos, String id, RiNode* type, RiVarKind kind)
 {
@@ -898,23 +933,25 @@ ri_make_spec_var_(Ri* ri, RiPos pos, String id, RiNode* type, RiVarKind kind)
     return spec;
 }
 
+//
+// Constant
+//
+
 static RiNode*
-ri_make_spec_type_func_(Ri* ri, RiPos pos, String id, RiNodeArray inputs, RiNodeArray outputs) {
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Type_Func);
+ri_make_spec_constant_(Ri* ri, RiPos pos, String id, RiNode* type, RiLiteral value)
+{
+    RI_CHECK(type);
+    RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type_Number));
+    RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Constant);
     node->spec.id = id;
-    node->spec.type.func.inputs = inputs;
-    node->spec.type.func.outputs = outputs;
+    node->spec.constant.type = type;
+    node->spec.constant.value = value;
     return node;
 }
 
-static RiNode*
-ri_make_spec_type_number_(Ri* ri, RiPos pos, String id, RiNodeKind kind)
-{
-    RI_CHECK(ri_is_in(kind, RiNode_Spec_Type_Number));
-    RiNode* spec = ri_make_node_(ri, pos, kind);
-    spec->spec.id = id;
-    return spec;
-}
+//
+// Functions
+//
 
 static RiNode*
 ri_make_spec_func_(Ri* ri, RiPos pos, String id, RiNode* type, RiNode* scope)
@@ -932,17 +969,31 @@ ri_make_spec_func_(Ri* ri, RiPos pos, String id, RiNode* type, RiNode* scope)
     return node;
 }
 
+//
+// Types
+//
+
 static RiNode*
-ri_make_spec_constant_(Ri* ri, RiPos pos, String id, RiNode* type, RiLiteral value)
-{
-    RI_CHECK(type);
-    RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type_Number));
-    RiNode* spec = ri_make_node_(ri, pos, RiNode_Spec_Constant);
-    spec->spec.id = id;
-    spec->spec.constant.type = type;
-    spec->spec.constant.value = value;
-    return spec;
+ri_make_spec_type_func_(Ri* ri, RiPos pos, String id, RiNodeArray inputs, RiNodeArray outputs) {
+    RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Type_Func);
+    node->spec.id = id;
+    node->spec.type.func.inputs = inputs;
+    node->spec.type.func.outputs = outputs;
+    return node;
 }
+
+static RiNode*
+ri_make_spec_type_number_(Ri* ri, RiPos pos, String id, RiNodeKind kind)
+{
+    RI_CHECK(ri_is_in(kind, RiNode_Spec_Type_Number));
+    RiNode* node = ri_make_node_(ri, pos, kind);
+    node->spec.id = id;
+    return node;
+}
+
+//
+//
+//
 
 static RiNode*
 ri_make_decl_(Ri* ri, RiPos pos, RiNode* spec)
@@ -954,6 +1005,10 @@ ri_make_decl_(Ri* ri, RiPos pos, RiNode* spec)
     node->decl.spec = spec;
     return node;
 }
+
+//
+// Expressions
+//
 
 static RiNode*
 ri_make_expr_call_(Ri* ri, RiPos pos, RiNode* func)
@@ -1008,6 +1063,10 @@ ri_make_expr_cast_(Ri* ri, RiPos pos, RiNode* expr, RiNode* type_to)
     }
     return expr;
 }
+
+//
+// Statements
+//
 
 static RiNode*
 ri_make_st_assign_(Ri *ri, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
@@ -3413,8 +3472,9 @@ ri_init(Ri* ri, void* host)
 void
 ri_purge(Ri* ri)
 {
-    // RI_LOG_DEBUG("memory %d bytes", ri->arena.head);
-    // RI_LOG_DEBUG("nodes %d", ri->index);
+    RI_LOG_DEBUG("types %d", ri->types.count);
+    RI_LOG_DEBUG("memory %d bytes", ri->arena.head);
+    RI_LOG_DEBUG("nodes %d", ri->index);
     arena_purge(&ri->arena);
     intern_purge(&ri->intern);
 }

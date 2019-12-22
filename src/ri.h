@@ -452,6 +452,11 @@ struct RiNode
 
                 struct {
                     RiTypeCompleteness completeness;
+                    // NOTE: This is set to another type declared earlier that is the same as this one.
+                    // It is used for comparing whether two types are identical.
+                    // We cannot just merge entire node to the base one, since that would make the
+                    // AST useless for other applications (like editor).
+                    RiNode* identical;
                     struct {
                         RiNodeArray inputs;
                         RiNodeArray outputs;
@@ -557,7 +562,7 @@ struct Ri {
     RiNode* scope;
     RiNode* module;
     RiNodeArray pending;
-
+    RiNodeArray types;
 
     int index;
 

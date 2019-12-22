@@ -207,3 +207,16 @@ type Vector2 [2]float32;
 var a, b Vector2;
 var c = a + b;
 ```
+
+## Future / Packages
+- Package is a function that returns a struct-like instance.
+```go
+// lib.ri
+func file_read(path char8[]) uint8[] {
+    // ...
+}
+
+// main.ri
+import "lib"
+var data = lib.file_read("test.txt");
+```
