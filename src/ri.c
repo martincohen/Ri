@@ -676,9 +676,13 @@ ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1)
 }
 
 static void
-ri_mark_identical_type_(Ri* ri, RiNode* node)
+ri_set_identical_type_(Ri* ri, RiNode* node)
 {
     RI_CHECK(ri_is_in(node->kind, RiNode_Spec_Type));
+    if (node->spec.type.identical != 0) {
+        return;
+    }
+
     RiNode* it;
     array_eachi(&ri->types, i, &it) {
         if (ri_compare_types_(ri, it, node)) {
@@ -2645,37 +2649,14 @@ RI_RESOLVE_F_(ri_resolve_node_)
 {
     RiNode* n = *node;
 
-    if (n->kind == RiNode_Decl)
-    {
-        // TODO: 1. Move out to ri_resolve_decl_().
-        // TODO: 2. Here only resolve variables and functions if we're in root scope.
-
-        RI_CHECK(n->decl.state == RiDecl_Unresolved);
-        n->decl.state = RiDecl_Resolving;
-
-        switch (n->decl.spec->kind) {
-            case RiNode_Spec_Func:
-                if (!ri_resolve_node_(ri, &n->decl.spec)) {
-                    return false;
-                }
-                break;
-            case RiNode_Spec_Var:
-                if (!ri_resolve_node_(ri, &n->decl.spec->spec.var.type)) {
-                    return false;
-                }
-                break;
-        }
-        n->decl.state = RiDecl_Resolved;
-        array_push(&n->owner->scope.decl, n);
-        return true;
-    } else if (ri_is_in(n->kind, RiNode_St_Assign)) {
+    if (ri_is_in(n->kind, RiNode_St_Assign)) {
         return ri_resolve_assign_(ri, node);
     } else if (ri_is_in(n->kind, RiNode_Expr_Binary)) {
         return ri_resolve_binary_(ri, node);
     } else if (ri_is_in(n->kind, RiNode_Expr_Unary)) {
         return ri_resolve_unary_(ri, node);
     } else if (ri_is_in(n->kind, RiNode_Spec_Type_Number)) {
-        // Nothing to do.
+        ri_set_identical_type_(ri, n);
         return true;
     } else if (n->kind == RiNode_Spec_Type_Infer) {
         return true;
@@ -2688,11 +2669,25 @@ RI_RESOLVE_F_(ri_resolve_node_)
             case RiNode_Id:
                 return ri_resolve_identifier_(ri, node);
 
+            case RiNode_Decl: {
+                RI_CHECK(n->decl.state == RiDecl_Unresolved);
+                n->decl.state = RiDecl_Resolving;
+                if (!ri_resolve_node_(ri, &n->decl.spec)) {
+                    return false;
+                }
+                n->decl.state = RiDecl_Resolved;
+                array_push(&n->owner->scope.decl, n);
+            } return true;
+
             case RiNode_Spec_Type_Func:
-                return (
+                if (
                     ri_resolve_func_args_(ri, n, &n->spec.type.func.inputs.slice) &&
                     ri_resolve_func_args_(ri, n, &n->spec.type.func.outputs.slice)
-                );
+                ) {
+                    ri_set_identical_type_(ri, n);
+                    return true;
+                }
+                return false;
 
             case RiNode_Spec_Func:
                 if (!ri_resolve_node_(ri, &n->spec.func.type)) {
@@ -2701,13 +2696,17 @@ RI_RESOLVE_F_(ri_resolve_node_)
                 array_push(&ri->pending, n->spec.func.scope);
                 return true;
 
+            case RiNode_Spec_Var:
+                return ri_resolve_node_(ri, &n->spec.var.type);
+
             case RiNode_Value_Constant:
+                return ri_resolve_node_(ri, &n->value.type);
+
             case RiNode_Value_Type:
             case RiNode_Value_Func:
-            case RiNode_Value_Var: {
-                // Nothing to do (these come resolved from ri_resolve_identifer_).
+            case RiNode_Value_Var:
+                // NOTE: Nothing to do, these come resolved from ri_resolve_identifier_().
                 return true;
-            } break;
 
             case RiNode_Expr_Call: {
                 if (!ri_resolve_node_(ri, &n->call.func)) {
