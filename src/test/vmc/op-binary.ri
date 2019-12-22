@@ -1,4 +1,4 @@
-func main(i32 int32) (r int32)
+func main(i32 int32) int32
 {
     i32 = 1 + 1;
     i32 = 1 - 1;
@@ -12,7 +12,6 @@ func main(i32 int32) (r int32)
 
     var b bool;
 
-    // TODO: Fix the bug first.
     b = true && true;
     b = true || true;
 

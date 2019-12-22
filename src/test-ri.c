@@ -150,11 +150,13 @@ testri_file_(const char* name, TestRiMode mode)
 
 void
 testri_resolve() {
-    testri_file_("parse/func-no-input-arguments", TestRi_Parse);
+
+    testri_file_("resolve/type-func", TestRi_Resolve);
 
 #if 0
     testri_file_("parse/switch", TestRi_Parse);
     testri_file_("parse/const-real", TestRi_Parse);
+    testri_file_("parse/func-no-input-arguments", TestRi_Parse);
 
     // TODO: testri_file_("test1");
 
@@ -167,6 +169,7 @@ testri_resolve() {
     testri_file_("resolve/assignment-infer-error", TestRi_Resolve);
     testri_file_("resolve/assignment", TestRi_Resolve);
 
+
     testri_file_("resolve/type-spec", TestRi_Resolve);
     testri_file_("resolve/type-inference-const", TestRi_Resolve);
     testri_file_("resolve/type-inference-const-binary-left-error", TestRi_Resolve);
@@ -174,6 +177,7 @@ testri_resolve() {
 
     testri_file_("resolve/op-arithmetic", TestRi_Resolve);
     testri_file_("resolve/op-arithmetic-type-mismatch-error", TestRi_Resolve);
+    testri_file_("resolve/op-binary", TestRi_Resolve);
     testri_file_("resolve/op-bitwise", TestRi_Resolve);
     testri_file_("resolve/op-boolean", TestRi_Resolve);
     testri_file_("resolve/op-comparison", TestRi_Resolve);
@@ -182,6 +186,7 @@ testri_resolve() {
     testri_file_("resolve/cast-int-to-bool-error", TestRi_Resolve);
     testri_file_("resolve/cast-float-to-bool-error", TestRi_Resolve);
     testri_file_("resolve/cast-arguments-count-error", TestRi_Resolve);
+    // TODO: testri_file_("resolve/cast-pointer-mul-conflict", TestRi_Resolve);
 #endif
 }
 

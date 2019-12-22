@@ -133,10 +133,14 @@ ri_error_set_mismatched_types_(Ri* ri, RiPos pos, RiNode* type0, RiNode* type1, 
         op = "and";
     }
 
+    // TODO: Get proper names.
+    // TODO: Merge same types.
     ri_error_set_(ri, RiError_Type, pos, "mismatched types %S %s %S",
-        ri->node_meta[type0->kind].node->spec.id,
+        // ri->node_meta[type0->kind].node->spec.id,
+        type0->spec.id,
         op,
-        ri->node_meta[type1->kind].node->spec.id
+        // ri->node_meta[type1->kind].node->spec.id
+        type1->spec.id
     );
 }
 
@@ -683,10 +687,10 @@ ri_retof_(Ri* ri, RiNode* node)
             case RiNode_Value_Constant:
                 RI_CHECK(node->value.type);
                 return node->value.type;
-            // case RiNode_Expr_Literal_Real:
-            //     // TODO: Error: Untyped.
-            //     // TODO: f32?
-            //     return ri->node_meta[RiNode_Spec_Type_Number_Float64].node;
+            case RiNode_Value_Func:
+                RI_CHECK(node->value.type);
+                return node->value.type;
+
             case RiNode_Expr_Cast:
                 return array_at(&node->call.arguments, 0);
             case RiNode_Expr_Call: {
@@ -1611,6 +1615,32 @@ ri_parse_spec_func_or_func_type_(Ri* ri)
 }
 
 static RiNode*
+ri_parse_decl_type_(Ri* ri)
+{
+    ri_error_check_(ri);
+    RI_CHECK(ri->token.kind == RiToken_Keyword_Type);
+    RiPos pos = ri->token.pos;
+    if (!ri_lex_next_(ri)) {
+        return NULL;
+    }
+
+    String id = ri->token.id;
+    if (!ri_lex_expect_token_(ri, RiToken_Identifier)) {
+        return NULL;
+    }
+
+    RiNode* type = ri_parse_type_(ri);
+    if (!type) {
+        return NULL;
+    }
+    RI_CHECK(type->spec.id.items == 0);
+    type->spec.id = id;
+
+    RiNode* decl = ri_make_decl_(ri, pos, type);
+    return decl;
+}
+
+static RiNode*
 ri_parse_decl_(Ri* ri)
 {
     ri_error_check_(ri);
@@ -1621,6 +1651,7 @@ ri_parse_decl_(Ri* ri)
         // TODO: Type is not expected here, only function declaration.
         case RiToken_Keyword_Func: node = ri_parse_spec_func_or_func_type_(ri); break;
         case RiToken_Keyword_Variable: node = ri_parse_decl_variable_(ri); break;
+        case RiToken_Keyword_Type: node = ri_parse_decl_type_(ri); break;
         default:
             ri_error_set_unexpected_token_(ri, &ri->token);
             break;
@@ -2031,6 +2062,16 @@ ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
     RiNode* node = NULL;
     switch (ri->token.kind)
     {
+        case RiToken_Keyword_Type:
+            node = ri_parse_decl_(ri);
+            if (!node) {
+                return NULL;
+            }
+            if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_Error) {
+                return NULL;
+            }
+            break;
+
         case RiToken_Keyword_Func:
             node = ri_parse_decl_(ri);
             if (!node) {
@@ -2460,7 +2501,7 @@ static RI_RESOLVE_F_(ri_resolve_identifier_)
         case RiNode_Spec_Func:
             id->kind = RiNode_Value_Func;
             id->value.spec = decl->decl.spec;
-            // id->value.type = ri_get_spec_(ri, decl->decl.spec);
+            id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.func.type);
             break;
         default:
             RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type));
@@ -2787,6 +2828,13 @@ ri_typecheck_node_(Ri* ri, RiNode* node)
                     }
                 }
                 return ri_retof_(ri, node);
+            } break;
+
+            case RiNode_St_Expr: {
+                if (!ri_typecheck_node_(ri, node->st_expr)) {
+                    return NULL;
+                }
+                return type_none;
             } break;
 
             case RiNode_St_Return: {

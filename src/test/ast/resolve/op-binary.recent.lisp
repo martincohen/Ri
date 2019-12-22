@@ -1,187 +1,187 @@
-(scope 22
+(scope 30
   (decl
-    (spec-var 'a'
+    (spec-var 'i32'
       (value-type
         (spec-type-number 'int32')
       )
     )
   )
   (decl
-    (spec-var 'x'
+    (spec-var 'b'
       (value-type
-        (spec-type-number 'int32')
-      )
-    )
-  )
-  (decl
-    (spec-var 'y'
-      (value-type
-        (spec-type-number 'int32')
+        (spec-type-number 'bool')
       )
     )
   )
   (code
     (decl
-      (spec-var 'x'
+      (spec-var 'i32'
         (value-type
           (spec-type-number 'int32')
         )
       )
     )
     (decl
-      (spec-var 'y'
+      (spec-var 'b'
         (value-type
+          (spec-type-number 'bool')
+        )
+      )
+    )
+    (st-assign
+      (value-var
+        (spec-var 'b'
+          (value-type
+            (spec-type-number 'bool')
+          )
+        )
+      )
+      (expr-and
+        (const true
+          (spec-type-number 'bool')
+        )
+        (const true
+          (spec-type-number 'bool')
+        )
+      )
+    )
+    (st-assign
+      (value-var
+        (spec-var 'b'
+          (value-type
+            (spec-type-number 'bool')
+          )
+        )
+      )
+      (expr-or
+        (const true
+          (spec-type-number 'bool')
+        )
+        (const true
+          (spec-type-number 'bool')
+        )
+      )
+    )
+    (st-assign
+      (value-var
+        (spec-var 'b'
+          (value-type
+            (spec-type-number 'bool')
+          )
+        )
+      )
+      (expr-lt
+        (value-var
+          (spec-var 'i32'
+            (value-type
+              (spec-type-number 'int32')
+            )
+          )
+        )
+        (const 1
           (spec-type-number 'int32')
         )
       )
     )
-    (decl
-      (spec-var 'a'
-        (value-type
-          (spec-type-number 'int32')
+    (st-assign
+      (value-var
+        (spec-var 'b'
+          (value-type
+            (spec-type-number 'bool')
+          )
+        )
+      )
+      (expr-lt
+        (const 1
+          (spec-type-number 'int64')
+        )
+        (const 1
+          (spec-type-number 'int64')
         )
       )
     )
     (st-assign
       (value-var
-        (spec-var 'a'
+        (spec-var 'b'
           (value-type
-            (spec-type-number 'int32')
+            (spec-type-number 'bool')
           )
         )
       )
-      (expr-bor
-        (value-var
-          (spec-var 'x'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+      (expr-lt-eq
+        (const 1
+          (spec-type-number 'int64')
         )
-        (value-var
-          (spec-var 'y'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+        (const 1
+          (spec-type-number 'int64')
         )
       )
     )
     (st-assign
       (value-var
-        (spec-var 'a'
+        (spec-var 'b'
           (value-type
-            (spec-type-number 'int32')
+            (spec-type-number 'bool')
           )
         )
       )
-      (expr-band
-        (value-var
-          (spec-var 'x'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+      (expr-gt
+        (const 1
+          (spec-type-number 'int64')
         )
-        (value-var
-          (spec-var 'y'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+        (const 1
+          (spec-type-number 'int64')
         )
       )
     )
     (st-assign
       (value-var
-        (spec-var 'a'
+        (spec-var 'b'
           (value-type
-            (spec-type-number 'int32')
+            (spec-type-number 'bool')
           )
         )
       )
-      (expr-bxor
-        (value-var
-          (spec-var 'x'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+      (expr-gt-eq
+        (const 1
+          (spec-type-number 'int64')
         )
-        (value-var
-          (spec-var 'y'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+        (const 1
+          (spec-type-number 'int64')
         )
       )
     )
     (st-assign
       (value-var
-        (spec-var 'a'
+        (spec-var 'b'
           (value-type
-            (spec-type-number 'int32')
+            (spec-type-number 'bool')
           )
         )
       )
-      (expr-bshr
-        (value-var
-          (spec-var 'x'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+      (expr-eq
+        (const 1
+          (spec-type-number 'int64')
         )
-        (value-var
-          (spec-var 'y'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+        (const 1
+          (spec-type-number 'int64')
         )
       )
     )
     (st-assign
       (value-var
-        (spec-var 'a'
+        (spec-var 'b'
           (value-type
-            (spec-type-number 'int32')
+            (spec-type-number 'bool')
           )
         )
       )
-      (expr-bshl
-        (value-var
-          (spec-var 'x'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+      (expr-not-eq
+        (const 1
+          (spec-type-number 'int64')
         )
-        (value-var
-          (spec-var 'y'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
-        )
-      )
-    )
-    (st-assign
-      (value-var
-        (spec-var 'a'
-          (value-type
-            (spec-type-number 'int32')
-          )
-        )
-      )
-      (expr-bneg
-        (value-var
-          (spec-var 'x'
-            (value-type
-              (spec-type-number 'int32')
-            )
-          )
+        (const 1
+          (spec-type-number 'int64')
         )
       )
     )

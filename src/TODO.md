@@ -13,9 +13,8 @@ See README.md for high-level tasks.
 - [x] Draft `if` compile
 - [x] Support for constant types? (resolved in AST)
 - [x] Draft calls
+- [x] Merge `call` and `arg-pop-n`.
 
-- [ ] Merge `call` and `arg-pop-n`.
-- [ ] Fix bug in AST (see bellow), then enable `op-binary` tests.
 - [ ] Compile "root" as module-init function.
 - [ ] Draft constant folding
 - [ ] Draft VM execution
@@ -23,18 +22,24 @@ See README.md for high-level tasks.
 
 ### AST
 
-- [x] Ignore named return values.
+- [x] Ignore named return values (we'll do multiple return values and named return values later).
 
+- [ ] Merge same types. See assignability rules here: https://golang.org/ref/spec#Assignability
+- [ ] `nil` as predefined identifier
 - [ ] Check for compatible types when casting consts.
-- [ ] If the function doesn't return anything, `return` should have no arguments.
+    - See https://golang.org/ref/spec#Representability
 - [ ] Type checking
     - [x] Basic type checking.
     - [x] Constant implicit casting.
-    - [x] Type checking for `return`.
     - [ ] Type checking for `for`.
     - [ ] Type checking for `if`.
     - [ ] Type checking for `switch`.
+    - [ ] Type checking for `return`.
+        - [x] Implicit cast for constants in argument expression.
+        - [ ] Check if return's argument type is the same as function's return type.
+        - [ ] Check if return has been called in functions having a return type.
     - [ ] Type checking for calls.
+        - [ ] Ensure number of arguments is the same.
     - [ ] Type inference for variable declarations `var x = <expr>;`.
 
 - [ ] Limit use of `=` for type inference, so we can't do `var a += 1`, which is now legal.
