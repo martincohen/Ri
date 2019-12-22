@@ -616,6 +616,60 @@ ri_get_spec_(Ri* ri, RiNode* node)
     return spec;
 }
 
+static bool
+ri_compare_function_arg_types_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
+{
+    if (a0->count != a1->count) {
+        return false;
+    }
+
+    for (int i = 0; i < t0->spec.type.func.inputs.count, ++i) {
+        RiNode* it0 = a0->items[i];
+        RiNode* it1 = a0->items[i];
+        RI_CHECK(it0->kind, RiNode_Decl);
+        RI_CHECK(it0->decl.spec->kind, RiNode_Spec_Var);
+        RI_CHECK(it1->kind, RiNode_Decl);
+        RI_CHECK(it1->decl.spec->kind, RiNode_Spec_Var);
+        if (ri_compare_types_(ri, ri_get_spec_(it0->decl.spec->spec.var.type), ri_get_spec_(it1->decl.spec->spec.var.type)) == false) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool
+ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1)
+{
+    RI_CHECK(t0 && ri_is_in(t0->kind, RiNode_Spec_Type));
+    RI_CHECK(t1 && ri_is_in(t1->kind, RiNode_Spec_Type));
+
+    if (t0->kind != t1->kind) {
+        return false;
+    }
+
+    switch (t0->kind)
+    {
+        case RiNode_Spec_Type_Func:
+            return (
+                ri_compare_function_arg_types_(ri, &t0->spec.type.func.inputs, &t1->spec.type.func.inputs) &&
+                ri_compare_function_arg_types_(ri, &t0->spec.type.func.outputs, &t1->spec.type.func.outputs)
+            );
+
+        case RiNode_Spec_Type_Pointer:
+            return ri_compare_types_(ri, t0->spec.type.pointer.base, t1->spec.type.pointer.base);
+
+        case RiNode_Spec_Type_None:
+            break;
+
+        case RiNode_Spec_Type_Infer:
+        default:
+            RI_UNREACHABLE;
+            break;
+    }
+    return true;
+}
+
 static RiNode*
 ri_complete_type_(Ri* ri, RiPos pos, RiNode* type)
 {
