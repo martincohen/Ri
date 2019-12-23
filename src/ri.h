@@ -222,8 +222,8 @@ enum RiNodeKind
 
     RiNode_Module,
     RiNode_Scope,
-
     RiNode_Id,
+    RiNode_Decl,
 
     RiNode_Spec_FIRST__,
         RiNode_Spec_Var,
@@ -269,8 +269,6 @@ enum RiNodeKind
             RiNode_Spec_Type_Number_LAST__,
         RiNode_Spec_Type_LAST__,
     RiNode_Spec_LAST__,
-
-    RiNode_Decl,
 
     RiNode_Value_FIRST__,
         RiNode_Value_Var,
@@ -456,7 +454,7 @@ struct RiNode
                     // It is used for comparing whether two types are identical.
                     // We cannot just merge entire node to the base one, since that would make the
                     // AST useless for other applications (like editor).
-                    RiNode* identical;
+                    RiNode* identity;
                     struct {
                         RiNodeArray inputs;
                         RiNodeArray outputs;
@@ -495,11 +493,14 @@ struct RiNode
         // A constant or reference to a spec used in expressions (var, func, type,...)
         struct {
             RiNode* spec;
-            RiNode* type;
-            // Used for inline constants, otherwise spec is not NULL.
-            // All literals are resolved to their final type in resolve phase.
-            // For untyped constants, spec == NULL and type == NULL.
-            RiLiteral constant;
+            // TODO: Split this up, or implement all constants as specs?
+            struct {
+                RiNode* type;
+                // Used for inline constants, otherwise spec is not NULL.
+                // All literals are resolved to their final type in resolve phase.
+                // For untyped constants, spec == NULL and type == NULL.
+                RiLiteral literal;
+            } constant;
         } value;
 
 

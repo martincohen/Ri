@@ -1,5 +1,10 @@
 # To do (messy)
 
+## Read
+
+- https://github.com/orangeduck/Cello
+- https://github.com/orangeduck/mpc
+
 See README.md for high-level tasks.
 
 ## Next
