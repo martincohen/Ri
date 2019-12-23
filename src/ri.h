@@ -221,7 +221,20 @@ enum RiNodeKind
     RiNode_Unknown,
 
     RiNode_Module,
-    RiNode_Scope,
+    RiNode_Scope_FIRST__,
+        RiNode_Scope_Root,
+        RiNode_Scope_Module,
+        RiNode_Scope_Function_Root,
+        RiNode_Scope_Function_Body,
+        RiNode_Scope_If_Root,
+        RiNode_Scope_If_Body,
+        RiNode_Scope_Switch_Root,
+        RiNode_Scope_Switch_Body,
+        RiNode_Scope_For_Root,
+        RiNode_Scope_For_Body,
+        RiNode_Scope_Nested,
+        RiNode_Scope_Statement,
+    RiNode_Scope_LAST__,
     RiNode_Id,
     RiNode_Decl,
 
@@ -507,7 +520,6 @@ struct RiNode
         // Statements
 
         struct {
-            // TODO: Merge with expr_call member?
             // NOTE: Can be NULL.
             RiNode* argument;
         } st_return;
@@ -524,15 +536,22 @@ struct RiNode
         } st_if;
 
         struct {
+            // NOTE: Can be NULL.
             RiNode* pre;
+            // NOTE: Can be NULL.
             RiNode* condition;
+            // NOTE: Can be NULL.
             RiNode* post;
+            // NOTE: Always present.
             RiNode* scope;
         } st_for;
 
         struct {
+            // NOTE: Can be NULL.
             RiNode* pre;
+            // NOTE: Cannot be NULL.
             RiNode* expr;
+            // NOTE: Always present.
             RiNode* scope;
         } st_switch;
 

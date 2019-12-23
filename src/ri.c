@@ -683,13 +683,13 @@ ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1)
 // Type identity
 //
 
-static void
-ri_get_type_identity_(Ri* ri, RiNode* node)
-{
-    RI_CHECK(ri_is_in(node->kind, RiNode_Spec_Type));
-    RI_CHECK(node->spec.type.identity != NULL);
-    return node->spec.type.identity;
-}
+// static void
+// ri_get_type_identity_(Ri* ri, RiNode* node)
+// {
+//     RI_CHECK(ri_is_in(node->kind, RiNode_Spec_Type));
+//     RI_CHECK(node->spec.type.identity != NULL);
+//     return node->spec.type.identity;
+// }
 
 static void
 ri_add_type_identity_(Ri* ri, RiNode* node)
@@ -787,19 +787,20 @@ ri_retof_(Ri* ri, RiNode* node)
         switch (node->kind)
         {
             case RiNode_Value_Var:
-                if (node->value.spec->kind == RiNode_Spec_Var) {
-                    return node->value.type;
-                } else {
-                    ri_error_set_(ri, RiError_UnexpectedValue, node->pos, "variable expected");
-                    return NULL;
-                }
-                break;
+                // if (node->value.spec->kind == RiNode_Spec_Var) {
+                //     return node->value.type;
+                // } else {
+                //     ri_error_set_(ri, RiError_UnexpectedValue, node->pos, "variable expected");
+                //     return NULL;
+                // }
+                RI_CHECK(node->value.spec->kind == RiNode_Spec_Var);
+                return ri_get_spec_(ri, node->value.spec->spec.var.type);
             case RiNode_Value_Constant:
-                RI_CHECK(node->value.type);
-                return node->value.type;
+                RI_CHECK(node->value.constant.type);
+                return ri_get_spec_(ri, node->value.constant.type);
             case RiNode_Value_Func:
-                RI_CHECK(node->value.type);
-                return node->value.type;
+                RI_CHECK(node->value.spec->kind == RiNode_Spec_Func);
+                return ri_get_spec_(ri, node->value.spec->spec.func.type);
 
             case RiNode_Expr_Cast:
                 return array_at(&node->call.arguments, 0);
@@ -930,9 +931,10 @@ ri_make_node_(Ri* ri, RiPos pos, RiNodeKind kind)
 }
 
 static RiNode*
-ri_make_scope_(Ri* ri, RiPos pos)
+ri_make_scope_(Ri* ri, RiPos pos, RiNodeKind kind)
 {
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Scope);
+    RI_CHECK(ri_is_in(kind, RiNode_Scope));
+    RiNode* node = ri_make_node_(ri, pos, kind);
     return node;
 }
 
@@ -988,7 +990,7 @@ ri_make_spec_func_(Ri* ri, RiPos pos, String id, RiNode* type, RiNode* scope)
     RI_CHECK(type);
     RI_CHECK(type->kind == RiNode_Spec_Type_Func);
     RI_CHECK(scope);
-    RI_CHECK(scope->kind == RiNode_Scope);
+    RI_CHECK(scope->kind == RiNode_Scope_Function_Root);
 
     RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Func);
     node->spec.id = id;
@@ -1241,8 +1243,8 @@ ri_parse_expr_operand_(Ri* ri)
 
         case RiToken_Integer: {
             RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
-            node->value.constant.integer = ri->token.integer;
-            node->value.type = ri->node_meta[RiNode_Spec_Type_Number_None_Int].node;
+            node->value.constant.literal.integer = ri->token.integer;
+            node->value.constant.type = ri->node_meta[RiNode_Spec_Type_Number_None_Int].node;
             if (ri_lex_next_(ri)) {
                 return node;
             }
@@ -1251,8 +1253,8 @@ ri_parse_expr_operand_(Ri* ri)
 
         case RiToken_Real: {
             RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
-            node->value.constant.real = ri->token.real;
-            node->value.type = ri->node_meta[RiNode_Spec_Type_Number_None_Real].node;
+            node->value.constant.literal.real = ri->token.real;
+            node->value.constant.type = ri->node_meta[RiNode_Spec_Type_Number_None_Real].node;
             if (ri_lex_next_(ri)) {
                 return node;
             }
@@ -1265,8 +1267,8 @@ ri_parse_expr_operand_(Ri* ri)
         case RiToken_Keyword_False:
         case RiToken_Keyword_True: {
             RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
-            node->value.constant.boolean = (ri->token.kind == RiToken_Keyword_True);
-            node->value.type = ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
+            node->value.constant.literal.boolean = (ri->token.kind == RiToken_Keyword_True);
+            node->value.constant.type = ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
             if (ri_lex_next_(ri)) {
                 return node;
             }
@@ -1678,7 +1680,7 @@ ri_parse_spec_partial_func_(Ri* ri, RiPos pos, String id)
 
     // NOTE: Starting and setting scope here, so all the nodes
     // created within have owner set to the scope.
-    RiNode* scope = ri_make_scope_(ri, pos);
+    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_Function_Root);
     ri->scope = scope;
     // RI_LOG_DEBUG("function '%S' scope %d", id, scope->index);
 
@@ -1691,7 +1693,7 @@ ri_parse_spec_partial_func_(Ri* ri, RiPos pos, String id)
     switch (ri_lex_next_if_(ri, RiToken_LB))
     {
         case RiLexNextIf_Match: {
-            scope_body = ri_parse_scope_(ri, RiToken_RB, RiNode_Spec_Func);
+            scope_body = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_Function_Body);
             if (!scope_body) {
                 return NULL;
             }
@@ -1877,7 +1879,7 @@ ri_parse_st_if_(Ri* ri)
         return NULL;
     }
 
-    RiNode* scope = ri_make_scope_(ri, pos);
+    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_If_Root);
     ri->scope = scope;
 
     RiNode* condition = NULL;
@@ -1916,7 +1918,7 @@ ri_parse_st_if_(Ri* ri)
     }
 
     RiNode* scope_else = NULL;
-    RiNode* scope_then = ri_parse_scope_(ri, RiToken_RB, RiNode_St_If);
+    RiNode* scope_then = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_If_Body);
     if (!scope_then) {
         return NULL;
     }
@@ -1935,7 +1937,7 @@ ri_parse_st_if_(Ri* ri)
                 if (!ri_lex_expect_token_(ri, RiToken_LB)) {
                     return NULL;
                 }
-                scope_else = ri_parse_scope_(ri, RiToken_RB, RiNode_St_If);
+                scope_else = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_If_Body);
                 if (!scope_else) {
                     return NULL;
                 }
@@ -1963,7 +1965,7 @@ ri_parse_st_for_(Ri* ri)
         return NULL;
     }
 
-    RiNode* scope = ri_make_scope_(ri, pos);
+    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_For_Root);
     ri->scope = scope;
 
     RiNode* pre = NULL;
@@ -2031,7 +2033,7 @@ skip:;
     }
 
 
-    scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_St_For);
+    scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_For_Body);
     if (!scope_block) {
         return NULL;
     }
@@ -2055,7 +2057,7 @@ ri_parse_st_switch_(Ri* ri)
         return NULL;
     }
 
-    RiNode* scope = ri_make_scope_(ri, pos);
+    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_Switch_Root);
     ri->scope = scope;
 
     RiNode* pre = NULL;
@@ -2100,7 +2102,7 @@ skip:;
         return NULL;
     }
 
-    RiNode* scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_St_Switch);
+    RiNode* scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_Switch_Body);
     if (!scope_block) {
         return NULL;
     }
@@ -2199,6 +2201,7 @@ ri_parse_st_simple_(Ri* ri)
 static RiNode*
 ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
 {
+    RI_CHECK(ri_is_in(scope_kind, RiNode_Scope));
     ri_error_check_(ri);
 
     RiNode* node = NULL;
@@ -2246,7 +2249,7 @@ ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
             break;
 
         case RiToken_Keyword_Case:
-            if (scope_kind != RiNode_St_Switch) {
+            if (scope_kind != RiNode_Scope_Switch_Body) {
                 ri_error_set_unexpected_token_(ri, &ri->token);
                 return NULL;
             }
@@ -2254,7 +2257,7 @@ ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
             break;
 
         case RiToken_Keyword_Default:
-            if (scope_kind != RiNode_St_Switch) {
+            if (scope_kind != RiNode_Scope_Switch_Body) {
                 ri_error_set_unexpected_token_(ri, &ri->token);
                 return NULL;
             }
@@ -2262,7 +2265,7 @@ ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
             break;
 
         case RiToken_Keyword_Break:
-            if (scope_kind != RiNode_St_Switch && scope_kind != RiNode_St_For) {
+            if (scope_kind != RiNode_Scope_Switch_Body && scope_kind != RiNode_Scope_For_Body) {
                 ri_error_set_unexpected_token_(ri, &ri->token);
                 return NULL;
             }
@@ -2280,7 +2283,7 @@ ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
         // - We can do this with counted allow_break++, allow_continue++.
         // - We will also need to assign break and continue with the correct parent.
         case RiToken_Keyword_Continue: {
-            if (scope_kind != RiNode_St_For) {
+            if (scope_kind != RiNode_Scope_For_Body) {
                 ri_error_set_unexpected_token_(ri, &ri->token);
                 return NULL;
             }
@@ -2308,7 +2311,8 @@ ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
 static RiNode*
 ri_parse_scope_(Ri* ri, RiTokenKind end, RiNodeKind scope_kind)
 {
-    RiNode* scope = ri_make_scope_(ri, ri->token.pos);
+    RI_CHECK(ri_is_in(scope_kind, RiNode_Scope));
+    RiNode* scope = ri_make_scope_(ri, ri->token.pos, scope_kind);
     ri->scope = scope;
     while (ri->token.kind != end) {
         RiNode* statement = ri_parse_st_(ri, scope_kind);
@@ -2346,9 +2350,153 @@ ri_parse(Ri* ri, String stream, String path)
 }
 
 //
+// AST Walker
+//
+
+typedef enum RiWalkResult
+{
+    RiWalk_Skip = -1,
+    RiWalk_Error = 0,
+    RiWalk_Continue = 1,
+}
+RiWalkResult;
+
+#define RIWALK_F(Name) RiWalkResult Name(Ri* ri, RiNode** node, void* context)
+typedef RIWALK_F(RiWalkF);
+
+// TODO: Check every node (perhaps introduce a `phase` arg to check whether there are Ids or not)
+
+static RiWalkResult
+ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
+{
+    switch (f(ri, node, context)) {
+        case RiWalk_Error: return RiWalk_Error;
+        case RiWalk_Skip: return RiWalk_Skip;
+    }
+
+    RiNode* n = *node;
+
+    RiNode* it;
+    if (ri_is_in(n->kind, RiNode_Spec_Type_Number)) {
+        return RiWalk_Continue;
+    } if (ri_is_in(n->kind, RiNode_St_Assign)) {
+        return ri_walk_(ri, &n->binary.argument0, f, context) && ri_walk_(ri, &n->binary.argument1, f, context);
+    } if (ri_is_in(n->kind, RiNode_Expr_Binary)) {
+        return ri_walk_(ri, &n->binary.argument0, f, context) && ri_walk_(ri, &n->binary.argument1, f, context);
+    } if (ri_is_in(n->kind, RiNode_Expr_Unary)) {
+        return ri_walk_(ri, &n->unary.argument, f, context);
+    } if (ri_is_in(n->kind, RiNode_Scope)) {
+        array_each(&n->scope.statements, &it) {
+            if (!ri_walk_(ri, &it, f, context)) {
+                return RiWalk_Error;
+            }
+        }
+        return RiWalk_Continue;
+    } else switch (n->kind)
+    {
+        case RiNode_Module:
+            return ri_walk_(ri, &n->module.scope, f, context);
+        case RiNode_Decl:
+            return ri_walk_(ri, &n->decl.spec, f, context);
+        case RiNode_Id:
+            return RiWalk_Continue;
+        case RiNode_Spec_Var:
+            return ri_walk_(ri, &n->spec.var.type, f, context);
+        case RiNode_Spec_Constant:
+            return ri_walk_(ri, &n->spec.constant.type, f, context);
+        case RiNode_Spec_Func:
+            return ri_walk_(ri, &n->spec.func.type, f, context);
+        case RiNode_Spec_Type_Func:
+            array_each(&n->spec.type.func.inputs, &it) {
+                if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
+                    return RiWalk_Error;
+                }
+            }
+            array_each(&n->spec.type.func.outputs, &it) {
+                if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
+                    return RiWalk_Error;
+                }
+            }
+            return true;
+        case RiNode_Value_Var:
+            return ri_walk_(ri, &n->value.spec, f, context);
+        case RiNode_Value_Func:
+            return ri_walk_(ri, &n->value.spec, f, context);
+        case RiNode_Value_Type:
+            return ri_walk_(ri, &n->value.spec, f, context);
+        case RiNode_Value_Constant:
+            return ri_walk_(ri, &n->value.constant.type, f, context);
+
+        case RiNode_Expr_Call:
+            if (ri_walk(ri, &n->call.func, f, context)) {
+                array_each(&n->call.arguments, &it) {
+                    if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
+                        return RiWalk_Error;
+                    }
+                }
+                return RiWalk_Continue;
+            }
+            return RiWalk_Error;
+
+        case RiNode_St_Expr:
+            return ri_walk_(ri, &n->st_expr, f, context);
+
+        case RiNode_St_Return:
+            if (n->st_return.argument) {
+                return ri_walk_(ri, &n->st_return.argument, f, context);
+            }
+            return RiWalk_Continue;
+        case RiNode_St_If:
+            if (n->st_if.pre && ri_walk_(ri, &n->st_if.pre, f, context) == RiWalk_Error) {
+                return RiWalk_Error;
+            }
+            if (n->st_if.condition && ri_walk_(ri, &n->st_if.condition, f, context) == RiWalk_Error) {
+                return RiWalk_Error;
+            }
+            RI_CHECK(n->st_if.scope && (n->st_if.scope->scope.statements.count == 1 || n->st_if.scope->scope.statements.count == 2));
+            // TODO: Check if there's an 'else' block, that it might either be a scope or another st_if.
+            if (!ri_walk_(ri, &n->st_if.scope, f, context)) {
+                return RiWalk_Error;
+            }
+            return RiWalk_Continue;
+        case RiNode_St_For:
+            if (n->st_for.pre && !ri_walk_(ri, &n->st_for.pre, f, context)) {
+                return RiWalk_Error;
+            }
+            if (n->st_for.condition && !ri_walk_(ri, &n->st_for.condition, f, context)) {
+                return RiWalk_Error;
+            }
+            if (n->st_for.post && !ri_walk_(ri, &n->st_for.post, f, context)) {
+                return RiWalk_Error;
+            }
+            if (!ri_walk_(ri, &n->st_for.scope, f, context)) {
+                return RiWalk_Error;
+            }
+            return RiWalk_Continue;
+        case RiNode_St_Switch:
+            if (n->st_if.pre && !ri_walk_(ri, &n->st_if.pre, f, context)) {
+                return RiWalk_Error;
+            }
+            if (n->st_if.condition && !ri_walk_(ri, &n->st_if.condition, f, context)) {
+                return RiWalk_Error;
+            }
+            if (!ri_walk_(ri, &n->st_for.scope, f, context)) {
+                return RiWalk_Error;
+            }
+            return RiWalk_Continue;
+        case RiNode_St_Switch_Case:
+            return ri_walk_(ri, &n->st_switch_case.expr, f, context);
+    }
+
+    RI_UNREACHABLE;
+    return RiWalk_Error;
+}
+
+//
 //
 //
 
+#if 0
 // NOTE: `expected_type` is used to cast constants if possible.
 #define RI_RESOLVE_F_(Name) bool Name(Ri* ri, RiNode** node)
 typedef RI_RESOLVE_F_(RiResolveF_);
@@ -2462,8 +2610,7 @@ static RI_RESOLVE_F_(ri_resolve_expr_call_func_)
     return true;
 }
 
-// TODO: Move type checking to typecheck phase because here
-// we cannot continue processing after error.
+// TODO: Validate in type patch phase.
 static RI_RESOLVE_F_(ri_resolve_expr_call_type_)
 {
     RiNode* n = *node;
@@ -2527,133 +2674,66 @@ static RI_RESOLVE_F_(ri_resolve_expr_call_type_)
     return true;
 }
 
-static RI_RESOLVE_F_(ri_resolve_st_if_)
-{
-    RiNode* n = *node;
+// TODO: Validate in type_patch_phase.
+// static RI_RESOLVE_F_(ri_resolve_st_if_)
+// {
+//     RiNode* n = *node;
 
-    if (n->st_if.pre && !ri_resolve_node_(ri, &n->st_if.pre)) {
-        return false;
-    }
+//     if (n->st_if.pre && !ri_resolve_node_(ri, &n->st_if.pre)) {
+//         return false;
+//     }
 
-    // No expected type, as we expect it'll be bool right away.
-    // So `if 1 { ... }` won't pass and result in error.
-    if (!ri_resolve_node_(ri, &n->st_if.condition)) {
-        return false;
-    }
-    RiNode* condition_type = ri_retof_(ri, n->st_if.condition);
-    if (condition_type == NULL) {
-        return false;
-    }
-    if (condition_type->kind != RiNode_Spec_Type_Number_Bool) {
-        ri_error_set_(ri, RiError_Type, n->st_if.condition->pos, "'bool' expected");
-        return false;
-    }
+//     // No expected type, as we expect it'll be bool right away.
+//     // So `if 1 { ... }` won't pass and result in error.
+//     if (!ri_resolve_node_(ri, &n->st_if.condition)) {
+//         return false;
+//     }
+//     RiNode* condition_type = ri_retof_(ri, n->st_if.condition);
+//     if (condition_type == NULL) {
+//         return false;
+//     }
+//     if (condition_type->kind != RiNode_Spec_Type_Number_Bool) {
+//         ri_error_set_(ri, RiError_Type, n->st_if.condition->pos, "'bool' expected");
+//         return false;
+//     }
 
-    if (!ri_resolve_node_(ri, &n->st_if.scope)) {
-        return false;
-    }
+//     if (!ri_resolve_node_(ri, &n->st_if.scope)) {
+//         return false;
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
-static RI_RESOLVE_F_(ri_resolve_st_for_)
-{
-    RiNode* n = *node;
+// TODO: Validate in type_patch phase.
+// static RI_RESOLVE_F_(ri_resolve_st_for_)
+// {
+//     RiNode* n = *node;
 
-    if (n->st_for.pre && !ri_resolve_node_(ri, &n->st_for.pre)) {
-        return false;
-    }
-    if (n->st_for.condition) {
-        if (!ri_resolve_node_(ri, &n->st_for.condition)) {
-            return false;
-        }
-        RiNode* condition_type = ri_retof_(ri, n->st_for.condition);
-        if (condition_type == NULL) {
-            return false;
-        }
-        if (condition_type->kind != RiNode_Spec_Type_Number_Bool) {
-            ri_error_set_(ri, RiError_Type, n->st_for.condition->pos, "'bool' expected");
-            return false;
-        }
-    }
-    if (n->st_for.post && !ri_resolve_node_(ri, &n->st_for.post)) {
-        return false;
-    }
-    if (!ri_resolve_node_(ri, &n->st_for.scope)) {
-        return false;
-    }
+//     if (n->st_for.pre && !ri_resolve_node_(ri, &n->st_for.pre)) {
+//         return false;
+//     }
+//     if (n->st_for.condition) {
+//         if (!ri_resolve_node_(ri, &n->st_for.condition)) {
+//             return false;
+//         }
+//         RiNode* condition_type = ri_retof_(ri, n->st_for.condition);
+//         if (condition_type == NULL) {
+//             return false;
+//         }
+//         if (condition_type->kind != RiNode_Spec_Type_Number_Bool) {
+//             ri_error_set_(ri, RiError_Type, n->st_for.condition->pos, "'bool' expected");
+//             return false;
+//         }
+//     }
+//     if (n->st_for.post && !ri_resolve_node_(ri, &n->st_for.post)) {
+//         return false;
+//     }
+//     if (!ri_resolve_node_(ri, &n->st_for.scope)) {
+//         return false;
+//     }
 
-    return true;
-}
-
-static RI_RESOLVE_F_(ri_resolve_identifier_)
-{
-    RiNode* id = *node;
-
-    RI_CHECK(id->kind == RiNode_Id);
-    RI_CHECK(id->id.name.items != NULL);
-
-    RiNode* decl = NULL;
-    RiNode* scope = id->owner;
-    while (scope) {
-        decl = map_get(&scope->scope.map, (ValueScalar){ .ptr = id->id.name.items }).ptr;
-        if (decl) {
-            break;
-        }
-        scope = scope->owner;
-    }
-
-    if (decl == NULL) {
-        ri_error_set_(ri, RiError_NotDeclared, id->pos, "%S was not declared", id->id.name);
-        return false;
-    }
-
-    RI_CHECK(decl->owner == scope);
-
-    RI_CHECK(decl->kind == RiNode_Decl);
-
-    if (decl->decl.state == RiDecl_Resolving)
-    {
-        ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
-        return false;
-    }
-    else if (decl->decl.state != RiDecl_Resolved)
-    {
-        if (!ri_resolve_node_(ri, &decl)) {
-            return false;
-        }
-    } else {
-        RI_CHECK(decl->decl.state == RiDecl_Resolved);
-    }
-
-
-    switch (decl->decl.spec->kind)
-    {
-        case RiNode_Spec_Var:
-            id->kind = RiNode_Value_Var;
-            id->value.spec = decl->decl.spec;
-            id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.var.type);
-            break;
-        case RiNode_Spec_Constant:
-            id->kind = RiNode_Value_Constant;
-            id->value.spec = decl->decl.spec;
-            id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.constant.type);
-            id->value.constant = decl->decl.spec->spec.constant.value;
-            break;
-        case RiNode_Spec_Func:
-            id->kind = RiNode_Value_Func;
-            id->value.spec = decl->decl.spec;
-            id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.func.type);
-            break;
-        default:
-            RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type));
-            id->kind = RiNode_Value_Type;
-            id->value.spec = decl->decl.spec;
-    }
-    RI_CHECK(ri_is_in(id->value.spec->kind, RiNode_Spec));
-
-    return true;
-}
+//     return true;
+// }
 
 static bool
 ri_resolve_func_args_(Ri* ri, RiNode* func_type, RiNodeSlice* args)
@@ -2725,7 +2805,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
                 return ri_resolve_node_(ri, &n->spec.var.type);
 
             case RiNode_Value_Constant:
-                return ri_resolve_node_(ri, &n->value.type);
+                return ri_resolve_node_(ri, &n->value.spec->spec.constant.type);
 
             case RiNode_Value_Type:
             case RiNode_Value_Func:
@@ -2777,6 +2857,101 @@ RI_RESOLVE_F_(ri_resolve_node_)
         return true;
     }
 }
+#endif
+
+static RIWALK_F(ri_resolve_node_);
+
+static RIWALK_F(ri_resolve_identifier_)
+{
+    RiNode* id = *node;
+
+    RI_CHECK(id->kind == RiNode_Id);
+    RI_CHECK(id->id.name.items != NULL);
+
+    RiNode* decl = NULL;
+    RiNode* scope = id->owner;
+    while (scope) {
+        decl = map_get(&scope->scope.map, (ValueScalar){ .ptr = id->id.name.items }).ptr;
+        if (decl) {
+            break;
+        }
+        scope = scope->owner;
+    }
+
+    if (decl == NULL) {
+        ri_error_set_(ri, RiError_NotDeclared, id->pos, "%S was not declared", id->id.name);
+        return RiWalk_Error;
+    }
+
+    RI_CHECK(decl->owner == scope);
+
+    RI_CHECK(decl->kind == RiNode_Decl);
+
+    if (decl->decl.state == RiDecl_Resolving)
+    {
+        ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
+        return RiWalk_Error;
+    }
+    else if (decl->decl.state != RiDecl_Resolved)
+    {
+        RI_CHECK(decl->decl.state == RiDecl_Unresolved);
+        decl->decl.state = RiDecl_Resolving;
+        if (ri_walk_(ri, &decl->decl.spec, &ri_resolve_node_, context) == RiWalk_Error) {
+            return RiWalk_Error;
+        }
+        decl->decl.state = RiDecl_Resolved;
+        array_push(&decl->owner->scope.decl, decl);
+    } else {
+        RI_CHECK(decl->decl.state == RiDecl_Resolved);
+    }
+
+
+    switch (decl->decl.spec->kind)
+    {
+        case RiNode_Spec_Var:
+            id->kind = RiNode_Value_Var;
+            id->value.spec = decl->decl.spec;
+            // id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.var.type);
+            break;
+
+        case RiNode_Spec_Constant:
+            id->kind = RiNode_Value_Constant;
+            id->value.spec = decl->decl.spec;
+            id->value.constant.type = ri_get_spec_(ri, decl->decl.spec->spec.constant.type);
+            id->value.constant.literal = decl->decl.spec->spec.constant.value;
+            break;
+
+        case RiNode_Spec_Func:
+            id->kind = RiNode_Value_Func;
+            id->value.spec = decl->decl.spec;
+            // id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.func.type);
+            break;
+
+        default:
+            RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type));
+            id->kind = RiNode_Value_Type;
+            id->value.spec = decl->decl.spec;
+    }
+    RI_CHECK(ri_is_in(id->value.spec->kind, RiNode_Spec));
+
+    return RiWalk_Continue;
+}
+
+static RIWALK_F(ri_resolve_node_)
+{
+    RiNode* n = *node;
+    switch (n->kind)
+    {
+        case RiNode_Id:
+            return ri_resolve_identifier_(ri, node, context);
+
+        case RiNode_Scope_Function_Root:
+            array_push(&ri->pending, n->spec.func.scope);
+            return RiWalk_Skip;
+    }
+
+    return RiWalk_Continue;
+}
 
 RiNode*
 ri_resolve(Ri* ri, RiNode* node)
@@ -2785,77 +2960,11 @@ ri_resolve(Ri* ri, RiNode* node)
 
     RiNode* it;
     array_each(&ri->pending, &it) {
-        if (!ri_resolve_node_(ri, &it)) {
+        if (ri_walk_(ri, &it, &ri_resolve_node_, 0) == RiWalk_Error) {
             return NULL;
         }
     }
     return node;
-}
-
-//
-//
-//
-
-#define RIWALK_F(Name) void Name(Ri* ri, RiNode* node, void* context)
-typedef RIWALK_F(RiWalkF);
-
-static bool
-ri_walk_(Ri* ri, RiNode* node, RiWalkF* f, void* context)
-{
-    if (!f(ri, node, context)) { return false; }
-
-    RiNode* it;
-    if (ri_is_in(node->kind, RiNode_Spec_Type_Number)) {
-        return ri_walk_(ri, node, f, context);
-    } else switch (node->kind)
-    {
-        case RiNode_Module:
-            return ri_walk_(ri, node->module.scope, f, context);
-            break;
-        case RiNode_Scope:
-            array_each(&node->scope.statements, &it) {
-                if (!ri_walk_(ri, it, f, context)) {
-                    return false;
-                }
-            }
-            break;
-        case RiNode_Decl:
-            return ri_walk_(ri, node->decl.spec, f, context);
-            break;
-        case RiNode_Spec_Var:
-            return ri_walk_(ri, node->spec.var.type, f, context);
-            break;
-        case RiNode_Spec_Constant:
-            return ri_walk_(ri, node->spec.constant.type, f, context);
-            break;
-        case RiNode_Spec_Func:
-            return ri_walk_(ri, node->spec.func.type, f, context);
-            break;
-        case RiNode_Spec_Type_Func:
-            array_each(&node->spec.type.func.inputs, &it) {
-                if (!ri_walk_(ri, it, f, context)) {
-                    return false;
-                }
-            }
-            array_each(&node->spec.type.func.outputs, &it) {
-                if (!ri_walk_(ri, it, f, context)) {
-                    return false;
-                }
-            }
-            break;
-        case RiNode_Value_Var:
-            return ri_walk_(ri, node->value.spec, f, context);
-        case RiNode_Value_Func:
-            return ri_walk_(ri, node->value.spec, f, context);
-        case RiNode_Value_Type:
-            return ri_walk_(ri, node->value.spec, f, context);
-        case RiNode_Value_Constant:
-            return ri_walk_(ri, node->value.constant.type, f, context);
-
-        default:
-            RI_UNREACHABLE;
-            break;
-    }
 }
 
 //
@@ -2875,8 +2984,8 @@ ri_type_patch_cast_const_(Ri* ri, RiNode* expr, RiNode* type)
         ri_type_patch_cast_const_(ri, expr->unary.argument, type);
     } else if (expr->kind == RiNode_Value_Constant) {
         // TODO: We need to be sure that the const type can actually be implicitly cast to `type`.
-        RI_ASSERT(ri_is_in(expr->value.type->kind, RiNode_Spec_Type_Number_None));
-        expr->value.type = type;
+        RI_ASSERT(ri_is_in(expr->value.constant.type->kind, RiNode_Spec_Type_Number_None));
+        expr->value.constant.type = type;
     }
 }
 
