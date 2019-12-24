@@ -2885,26 +2885,29 @@ static RIWALK_F(ri_resolve_decl_)
 
     RI_CHECK(decl->kind == RiNode_Decl);
 
-    if (decl->decl.state == RiDecl_Resolving) {
+    RiNode* spec = decl->decl.spec;
+    if (spec->kind == RiNode_Id) {
+        if (ri_resolve_identifier_(ri, &spec, context) == RiWalk_Error) {
+            return RiWalk_Error;
+        }
+        RI_CHECK(ri_is_in(spec->kind, RiNode_Spec));
+    }
+    decl->decl.spec = spec;
+
+    if (spec->spec.state == RiSpec_Resolving) {
         ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
         return RiWalk_Error;
-    } else if (decl->decl.state == RiDecl_Resolved) {
+    } else if (spec->spec.state == RiSpec_Resolved) {
         return RiWalk_Continue;
     }
 
-    decl->decl.state = RiDecl_Resolving;
-    RiNode* spec = decl->decl.spec;
-    switch (spec->kind)
-    {
-        case RiNode_Spec_Func:
-
-    }
-
-    if (ri_walk_(ri, &decl->decl.spec, &ri_resolve_node_, context) == RiWalk_Error) {
+    spec->spec.state = RiSpec_Resolving;
+    if (ri_walk_(ri, &spec, &ri_resolve_node_, context) == RiWalk_Error) {
         return RiWalk_Error;
     }
+    spec->spec.state = RiSpec_Resolved;
+    RI_CHECK(decl->decl.spec == spec);
 
-    decl->decl.state = RiDecl_Resolved;
     array_push(&decl->owner->scope.decl, decl);
 
     return true;
@@ -2942,7 +2945,7 @@ static RIWALK_F(ri_resolve_identifier_)
     RI_CHECK(decl->owner == scope);
     RI_CHECK(decl->kind == RiNode_Decl);
 
-    if (!ri_resolve_decl_(ri, decl)) {
+    if (ri_resolve_decl_(ri, &decl, context) == RiWalk_Error) {
         return RiWalk_Error;
     }
 

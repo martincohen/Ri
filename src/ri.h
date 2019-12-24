@@ -22,7 +22,7 @@ typedef struct RiScope RiScope;
 typedef enum RiErrorKind RiErrorKind;
 typedef enum RiTokenKind RiTokenKind;
 typedef enum RiNodeKind RiNodeKind;
-typedef enum RiDeclState RiDeclState;
+typedef enum RiSpecState RiSpecState;
 typedef enum RiTypeCompleteness RiTypeCompleteness;
 typedef enum RiVarKind RiVarKind;
 
@@ -194,10 +194,10 @@ typedef ArrayWithSlice(RiNodeSlice) RiNodeArray;
 //
 //
 
-enum RiDeclState {
-    RiDecl_Unresolved,
-    RiDecl_Resolving,
-    RiDecl_Resolved,
+enum RiSpecState {
+    RiSpec_Unresolved,
+    RiSpec_Resolving,
+    RiSpec_Resolved,
 };
 
 //
@@ -433,12 +433,12 @@ struct RiNode
         } scope;
 
         struct {
-            RiDeclState state;
             RiNode* spec;
         } decl;
 
         struct {
             String id;
+            RiSpecState state;
             union {
                 struct {
                     RiNode* type;

@@ -153,6 +153,7 @@ GOAL: Interprets three-address code in a straightforward manner. (baseline perfo
 # Future
 
 - Enums
+    - Stringifying enums.
 - Interfaces
     - There's a dynamic property to interfaces which requires type knowledge at runtime.
     - https://medium.com/rungo/interfaces-in-go-ab1601159b3a
