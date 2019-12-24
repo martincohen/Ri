@@ -2877,10 +2877,49 @@ RI_RESOLVE_F_(ri_resolve_node_)
 #endif
 
 static RIWALK_F(ri_resolve_node_);
+static RIWALK_F(ri_resolve_identifier_);
 
+static RIWALK_F(ri_resolve_decl_)
+{
+    RiNode* decl = *node;
+
+    RI_CHECK(decl->kind == RiNode_Decl);
+
+    if (decl->decl.state == RiDecl_Resolving) {
+        ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
+        return RiWalk_Error;
+    } else if (decl->decl.state == RiDecl_Resolved) {
+        return RiWalk_Continue;
+    }
+
+    decl->decl.state = RiDecl_Resolving;
+    RiNode* spec = decl->decl.spec;
+    switch (spec->kind)
+    {
+        case RiNode_Spec_Func:
+
+    }
+
+    if (ri_walk_(ri, &decl->decl.spec, &ri_resolve_node_, context) == RiWalk_Error) {
+        return RiWalk_Error;
+    }
+
+    decl->decl.state = RiDecl_Resolved;
+    array_push(&decl->owner->scope.decl, decl);
+
+    return true;
+}
+
+// 1. Takes identifier node
+// 2. Looks up corresponding declaration in scope and parents.
+// 3. If the decalration is not resolved, walks over the declaration node to resolve it's identifiers.
+// 4. Mutates identifier node to a spec taken from the resolved declaration.
+//
 static RIWALK_F(ri_resolve_identifier_)
 {
     RiNode* id = *node;
+
+    LOG("id %S", id->id.name);
 
     RI_CHECK(id->kind == RiNode_Id);
     RI_CHECK(id->id.name.items != NULL);
@@ -2903,26 +2942,9 @@ static RIWALK_F(ri_resolve_identifier_)
     RI_CHECK(decl->owner == scope);
     RI_CHECK(decl->kind == RiNode_Decl);
 
-    switch (decl->decl.state)
-    {
-        case RiDecl_Resolving:
-            ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
-            return RiWalk_Error;
-        case RiDecl_Unresolved:
-            decl->decl.state = RiDecl_Resolving;
-            if (ri_walk_(ri, &decl->decl.spec, &ri_resolve_node_, context) == RiWalk_Error) {
-                return RiWalk_Error;
-            }
-            decl->decl.state = RiDecl_Resolved;
-            array_push(&decl->owner->scope.decl, decl);
-            break;
-        case RiDecl_Resolved:
-            break;
-        default:
-            RI_UNREACHABLE;
-            break;
+    if (!ri_resolve_decl_(ri, decl)) {
+        return RiWalk_Error;
     }
-
 
     switch (decl->decl.spec->kind)
     {
@@ -2966,11 +2988,6 @@ static RIWALK_F(ri_resolve_node_)
             return ri_resolve_identifier_(ri, node, context);
 
         case RiNode_Scope_Function_Root:
-            // TODO: Function's body is added twice:
-            // Once when we're walking over function declaration and
-            // once when we're resolving it's name through resolve_identifier.
-            // Walk all root declarations (skipping anything unused).
-            array_push(&ri->pending, n);
             return RiWalk_Skip;
     }
 
@@ -2980,12 +2997,18 @@ static RIWALK_F(ri_resolve_node_)
 RiNode*
 ri_resolve(Ri* ri, RiNode* node)
 {
-    array_push(&ri->pending, node);
+    if (ri_walk_(ri, &node, &ri_resolve_node_, 0) == RiWalk_Error) {
+        return NULL;
+    }
 
     RiNode* it;
-    array_each(&ri->pending, &it) {
-        if (ri_walk_(ri, &it, &ri_resolve_node_, 0) == RiWalk_Error) {
-            return NULL;
+    array_each(&node->scope.decl, &it) {
+        switch (it->decl.spec->kind) {
+            case RiNode_Spec_Func:
+                if (ri_resolve(ri, it->decl.spec->spec.func.scope) == NULL) {
+                    return NULL;
+                }
+                break;
         }
     }
     return node;
