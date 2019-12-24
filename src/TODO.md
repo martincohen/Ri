@@ -28,7 +28,7 @@ See README.md for high-level tasks.
 ### AST
 
 - [x] Ignore named return values (we'll do multiple return values and named return values later).
-
+- [ ] Rework `constant` node as it's messy now. Probably also add support for initializers.
 - [ ] Merge same types. See assignability rules here: https://golang.org/ref/spec#Assignability
 - [ ] `nil` as predefined identifier
 - [ ] Check for compatible types when casting consts.

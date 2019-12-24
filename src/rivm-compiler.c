@@ -363,13 +363,13 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 switch (type)
                 {
                     case RiVmValue_I32:
-                        return rivm_make_param(Imm, .type = type, .imm.i32 = (int32_t)ast_expr->value.constant.integer);
+                        return rivm_make_param(Imm, .type = type, .imm.i32 = (int32_t)ast_expr->value.constant.literal.integer);
                     case RiVmValue_U32:
-                        return rivm_make_param(Imm, .type = type, .imm.u32 = (uint32_t)ast_expr->value.constant.integer);
+                        return rivm_make_param(Imm, .type = type, .imm.u32 = (uint32_t)ast_expr->value.constant.literal.integer);
                     case RiVmValue_I64:
-                        return rivm_make_param(Imm, .type = type, .imm.i64 = (int64_t)ast_expr->value.constant.integer);
+                        return rivm_make_param(Imm, .type = type, .imm.i64 = (int64_t)ast_expr->value.constant.literal.integer);
                     case RiVmValue_U64:
-                        return rivm_make_param(Imm, .type = type, .imm.u64 = (uint64_t)ast_expr->value.constant.integer);
+                        return rivm_make_param(Imm, .type = type, .imm.u64 = (uint64_t)ast_expr->value.constant.literal.integer);
                     default:
                         RI_UNREACHABLE;
                         break;
@@ -386,17 +386,17 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
 {
     RI_ASSERT(ast_st);
 
-    switch (ast_st->kind)
+    if (ri_is_in(ast_st->kind, RiNode_Scope))
+    {
+        RiNode* it;
+        array_each(&ast_st->scope.statements, &it) {
+            rivm_compile_st_(compiler, it);
+        }
+    }
+    else switch (ast_st->kind)
     {
         case RiNode_Decl: {
             // Skip.
-        } break;
-
-        case RiNode_Scope: {
-            RiNode* it;
-            array_each(&ast_st->scope.statements, &it) {
-                rivm_compile_st_(compiler, it);
-            }
         } break;
 
         case RiNode_St_Return: {

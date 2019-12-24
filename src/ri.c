@@ -2343,8 +2343,7 @@ ri_parse(Ri* ri, String stream, String path)
         return NULL;
     }
 
-    // TODO: Block scope kind.
-    RiNode* block = ri_parse_scope_(ri, RiToken_End, RiNode_Unknown);
+    RiNode* block = ri_parse_scope_(ri, RiToken_End, RiNode_Scope_Module);
 
     return block;
 }
@@ -2371,7 +2370,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
 {
     switch (f(ri, node, context)) {
         case RiWalk_Error: return RiWalk_Error;
-        case RiWalk_Skip: return RiWalk_Skip;
+        case RiWalk_Skip: return RiWalk_Continue;
     }
 
     RiNode* n = *node;
@@ -2380,9 +2379,21 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
     if (ri_is_in(n->kind, RiNode_Spec_Type_Number)) {
         return RiWalk_Continue;
     } if (ri_is_in(n->kind, RiNode_St_Assign)) {
-        return ri_walk_(ri, &n->binary.argument0, f, context) && ri_walk_(ri, &n->binary.argument1, f, context);
+        if (ri_walk_(ri, &n->binary.argument0, f, context) == RiWalk_Error) {
+            return RiWalk_Error;
+        }
+        if (ri_walk_(ri, &n->binary.argument1, f, context) == RiWalk_Error) {
+            return RiWalk_Error;
+        }
+        return RiWalk_Continue;
     } if (ri_is_in(n->kind, RiNode_Expr_Binary)) {
-        return ri_walk_(ri, &n->binary.argument0, f, context) && ri_walk_(ri, &n->binary.argument1, f, context);
+        if (ri_walk_(ri, &n->binary.argument0, f, context) == RiWalk_Error) {
+            return RiWalk_Error;
+        }
+        if (ri_walk_(ri, &n->binary.argument1, f, context) == RiWalk_Error) {
+            return RiWalk_Error;
+        }
+        return RiWalk_Continue;
     } if (ri_is_in(n->kind, RiNode_Expr_Unary)) {
         return ri_walk_(ri, &n->unary.argument, f, context);
     } if (ri_is_in(n->kind, RiNode_Scope)) {
@@ -2405,7 +2416,13 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
         case RiNode_Spec_Constant:
             return ri_walk_(ri, &n->spec.constant.type, f, context);
         case RiNode_Spec_Func:
-            return ri_walk_(ri, &n->spec.func.type, f, context);
+            if (ri_walk_(ri, &n->spec.func.type, f, context) == RiWalk_Error) {
+                return RiWalk_Error;
+            }
+            if (n->spec.func.scope && ri_walk_(ri, &n->spec.func.scope, f, context) == RiWalk_Error) {
+                return RiWalk_Error;
+            }
+            return RiWalk_Continue;
         case RiNode_Spec_Type_Func:
             array_each(&n->spec.type.func.inputs, &it) {
                 if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
@@ -2417,7 +2434,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                     return RiWalk_Error;
                 }
             }
-            return true;
+            return RiWalk_Continue;
         case RiNode_Value_Var:
             return ri_walk_(ri, &n->value.spec, f, context);
         case RiNode_Value_Func:
@@ -2428,7 +2445,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
             return ri_walk_(ri, &n->value.constant.type, f, context);
 
         case RiNode_Expr_Call:
-            if (ri_walk(ri, &n->call.func, f, context)) {
+            if (ri_walk_(ri, &n->call.func, f, context)) {
                 array_each(&n->call.arguments, &it) {
                     if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
                         return RiWalk_Error;
@@ -2884,25 +2901,26 @@ static RIWALK_F(ri_resolve_identifier_)
     }
 
     RI_CHECK(decl->owner == scope);
-
     RI_CHECK(decl->kind == RiNode_Decl);
 
-    if (decl->decl.state == RiDecl_Resolving)
+    switch (decl->decl.state)
     {
-        ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
-        return RiWalk_Error;
-    }
-    else if (decl->decl.state != RiDecl_Resolved)
-    {
-        RI_CHECK(decl->decl.state == RiDecl_Unresolved);
-        decl->decl.state = RiDecl_Resolving;
-        if (ri_walk_(ri, &decl->decl.spec, &ri_resolve_node_, context) == RiWalk_Error) {
+        case RiDecl_Resolving:
+            ri_error_set_(ri, RiError_CyclicDeclaration, decl->pos, "cyclic declaration");
             return RiWalk_Error;
-        }
-        decl->decl.state = RiDecl_Resolved;
-        array_push(&decl->owner->scope.decl, decl);
-    } else {
-        RI_CHECK(decl->decl.state == RiDecl_Resolved);
+        case RiDecl_Unresolved:
+            decl->decl.state = RiDecl_Resolving;
+            if (ri_walk_(ri, &decl->decl.spec, &ri_resolve_node_, context) == RiWalk_Error) {
+                return RiWalk_Error;
+            }
+            decl->decl.state = RiDecl_Resolved;
+            array_push(&decl->owner->scope.decl, decl);
+            break;
+        case RiDecl_Resolved:
+            break;
+        default:
+            RI_UNREACHABLE;
+            break;
     }
 
 
@@ -2934,6 +2952,8 @@ static RIWALK_F(ri_resolve_identifier_)
     }
     RI_CHECK(ri_is_in(id->value.spec->kind, RiNode_Spec));
 
+    *node = id;
+
     return RiWalk_Continue;
 }
 
@@ -2946,7 +2966,11 @@ static RIWALK_F(ri_resolve_node_)
             return ri_resolve_identifier_(ri, node, context);
 
         case RiNode_Scope_Function_Root:
-            array_push(&ri->pending, n->spec.func.scope);
+            // TODO: Function's body is added twice:
+            // Once when we're walking over function declaration and
+            // once when we're resolving it's name through resolve_identifier.
+            // Walk all root declarations (skipping anything unused).
+            array_push(&ri->pending, n);
             return RiWalk_Skip;
     }
 
@@ -3089,22 +3113,19 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
         return t0;
     } else if (ri_is_in(node->kind, RiNode_Expr_Unary)) {
         return ri_type_patch_node_(ri, node->unary.argument);
+    } else if (ri_is_in(node->kind, RiNode_Scope)) {
+        RiNode* it;
+        array_each(&node->scope.statements, &it) {
+            if (!ri_type_patch_node_(ri, it)) {
+                return NULL;
+            }
+        }
+        return type_none;
     } else {
         switch (node->kind)
         {
-            case RiNode_Module: {
+            case RiNode_Module:
                 return ri_type_patch_node_(ri, node->module.scope);
-            }
-
-            case RiNode_Scope: {
-                RiNode* it;
-                array_each(&node->scope.statements, &it) {
-                    if (!ri_type_patch_node_(ri, it)) {
-                        return NULL;
-                    }
-                }
-                return type_none;
-            } break;
 
             case RiNode_Decl: {
                 switch (node->decl.spec->kind) {
@@ -3341,6 +3362,8 @@ ri_dump_(RiDump_* D, RiNode* node)
 {
     RI_CHECK(node);
 
+    RiNode* it;
+
     int is_logged = map_get(&D->logged, (ValueScalar){ .ptr = node }).i32;
     if (!is_logged) {
         map_put(&D->logged, (ValueScalar){ .ptr = node }, (ValueScalar){ .i32 = 1 });
@@ -3357,8 +3380,22 @@ ri_dump_(RiDump_* D, RiNode* node)
         riprinter_print(&D->printer, "\b)\n");
     } else if (ri_is_in(node->kind, RiNode_Spec_Type_Number)) {
         riprinter_print(&D->printer, "(spec-type-number '%S')\n", node->spec.id);
+    } else if (ri_is_in(node->kind, RiNode_Scope)) {
+        riprinter_print(&D->printer, "(scope %d\n\t", node->index);
+        if (node->scope.decl.count) {
+            array_each(&node->scope.decl, &it) {
+                ri_dump_(D, it);
+            }
+        }
+        riprinter_print(&D->printer, "(code");
+        if (is_logged) {
+            riprinter_print(&D->printer, " (recursive)");
+        } else {
+            ri_dump_slice_(D, &node->scope.statements.slice, NULL);
+        }
+        riprinter_print(&D->printer, ")\n");
+        riprinter_print(&D->printer, "\b)\n");
     } else {
-        RiNode* it;
         switch (node->kind)
         {
             case RiNode_Module: {
@@ -3366,26 +3403,6 @@ ri_dump_(RiDump_* D, RiNode* node)
                 ri_dump_(D, node->module.scope);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
-
-            case RiNode_Scope: {
-                riprinter_print(&D->printer, "(scope %d\n\t", node->index);
-
-                if (node->scope.decl.count) {
-                    array_each(&node->scope.decl, &it) {
-                        ri_dump_(D, it);
-                    }
-                }
-                riprinter_print(&D->printer, "(code");
-                if (is_logged) {
-                    riprinter_print(&D->printer, " (recursive)");
-                } else {
-                    ri_dump_slice_(D, &node->scope.statements.slice, NULL);
-                }
-                riprinter_print(&D->printer, ")\n");
-
-                riprinter_print(&D->printer, "\b)\n");
-            } break;
-
 
             case RiNode_Decl: {
                 riprinter_print(&D->printer, "(decl\n\t");
@@ -3487,39 +3504,39 @@ ri_dump_(RiDump_* D, RiNode* node)
 
             case RiNode_Value_Constant: {
                 riprinter_print(&D->printer, "(const ");
-                switch (node->value.type->kind) {
+                switch (node->value.constant.type->kind) {
                     case RiNode_Spec_Type_Number_Int8:
                     case RiNode_Spec_Type_Number_Int16:
                     case RiNode_Spec_Type_Number_Int32:
                     case RiNode_Spec_Type_Number_UInt8:
                     case RiNode_Spec_Type_Number_UInt16:
                     case RiNode_Spec_Type_Number_UInt32:
-                        riprinter_print(&D->printer, "%d\n\t", node->value.constant.integer);
+                        riprinter_print(&D->printer, "%d\n\t", node->value.constant.literal.integer);
                         break;
 
                     case RiNode_Spec_Type_Number_UInt64:
                     case RiNode_Spec_Type_Number_None_Int:
-                        riprinter_print(&D->printer, "%"PRIu64"\n\t", node->value.constant.integer);
+                        riprinter_print(&D->printer, "%"PRIu64"\n\t", node->value.constant.literal.integer);
                         break;
                     case RiNode_Spec_Type_Number_Float32:
                     case RiNode_Spec_Type_Number_Float64:
                     case RiNode_Spec_Type_Number_None_Real:
-                        riprinter_print(&D->printer, "%f\n\t", node->value.constant.real);
+                        riprinter_print(&D->printer, "%f\n\t", node->value.constant.literal.real);
                         break;
                     case RiNode_Spec_Type_Number_Bool:
                         riprinter_print(&D->printer, "%s\n\t",
-                            node->value.constant.boolean ? "true" : "false");
+                            node->value.constant.literal.boolean ? "true" : "false");
                         break;
 
                     case RiNode_Spec_Type_Number_Int64:
-                        riprinter_print(&D->printer, "%"PRIi64"\n\t", node->value.constant.integer);
+                        riprinter_print(&D->printer, "%"PRIi64"\n\t", node->value.constant.literal.integer);
                         break;
 
                     default:
                         riprinter_print(&D->printer, "UNKNOWN\n\t");
                         break;
                 }
-                ri_dump_(D, node->value.type);
+                ri_dump_(D, node->value.constant.type);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
@@ -3610,7 +3627,7 @@ ri_init(Ri* ri, void* host)
 
     ri->id_underscore  = ri_make_id_(ri, S("_")).items;
 
-    ri->scope = ri_make_scope_(ri, RI_POS_OUTSIDE);
+    ri->scope = ri_make_scope_(ri, RI_POS_OUTSIDE, RiNode_Scope_Root);
 
     ri->node_meta[RiNode_Spec_Type_None].node =
         ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_None);
@@ -3639,7 +3656,7 @@ ri_init(Ri* ri, void* host)
         ri->node_meta[RiNode_Spec_Type_ ## Type] = (RiNodeMeta){ \
             .node = spec, \
         }; \
-        ri_add_type_identity_(ri, spec);
+        ri_add_type_identity_(ri, spec); \
         ri_scope_set_(ri, ri_make_decl_(ri, spec->pos, spec)); \
     }
 

@@ -102,7 +102,7 @@ testri_file_(const char* name, TestRiMode mode)
     if (mode == TestRi_Resolve && node != NULL) {
         node = ri_resolve(&ri, node);
         if (node) {
-            if (!ri_typecheck(&ri, node)) {
+            if (!ri_type_patch(&ri, node)) {
                 node = NULL;
             }
         }
