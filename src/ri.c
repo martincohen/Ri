@@ -2463,6 +2463,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return ri_walk_(ri, &n->st_return.argument, f, context);
             }
             return RiWalk_Continue;
+            
         case RiNode_St_If:
             if (n->st_if.pre && ri_walk_(ri, &n->st_if.pre, f, context) == RiWalk_Error) {
                 return RiWalk_Error;
@@ -2476,6 +2477,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return RiWalk_Error;
             }
             return RiWalk_Continue;
+
         case RiNode_St_For:
             if (n->st_for.pre && !ri_walk_(ri, &n->st_for.pre, f, context)) {
                 return RiWalk_Error;
@@ -2490,6 +2492,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return RiWalk_Error;
             }
             return RiWalk_Continue;
+
         case RiNode_St_Switch:
             if (n->st_if.pre && !ri_walk_(ri, &n->st_if.pre, f, context)) {
                 return RiWalk_Error;
@@ -2501,6 +2504,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return RiWalk_Error;
             }
             return RiWalk_Continue;
+
         case RiNode_St_Switch_Case:
             return ri_walk_(ri, &n->st_switch_case.expr, f, context);
     }
@@ -2985,13 +2989,15 @@ static RIWALK_F(ri_resolve_identifier_)
 static RIWALK_F(ri_resolve_node_)
 {
     RiNode* n = *node;
-    switch (n->kind)
+    if (ri_is_in(n->kind, RiNode_Spec)) {
+        if (n->spec.state == RiSpec_Resolved) {
+            return RiWalk_Skip;
+        }
+    }
+    else switch (n->kind)
     {
         case RiNode_Id:
             return ri_resolve_identifier_(ri, node, context);
-
-        case RiNode_Scope_Function_Root:
-            return RiWalk_Skip;
     }
 
     return RiWalk_Continue;
@@ -3002,17 +3008,6 @@ ri_resolve(Ri* ri, RiNode* node)
 {
     if (ri_walk_(ri, &node, &ri_resolve_node_, 0) == RiWalk_Error) {
         return NULL;
-    }
-
-    RiNode* it;
-    array_each(&node->scope.decl, &it) {
-        switch (it->decl.spec->kind) {
-            case RiNode_Spec_Func:
-                if (ri_resolve(ri, it->decl.spec->spec.func.scope) == NULL) {
-                    return NULL;
-                }
-                break;
-        }
     }
     return node;
 }

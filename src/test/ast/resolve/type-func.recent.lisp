@@ -1,4 +1,4 @@
 (error
-  "resolve/type-func.ri" 1 1
-  "null"
+  "resolve/type-func.ri" 5 1
+  "mismatched types MyFunc = null"
 )
