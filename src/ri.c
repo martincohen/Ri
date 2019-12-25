@@ -620,10 +620,10 @@ ri_get_spec_(Ri* ri, RiNode* node)
 // Comparing types
 //
 
-static bool ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1);
+static bool ri_type_equal_(Ri* ri, RiNode* t0, RiNode* t1);
 
 static bool
-ri_compare_function_arg_types_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
+ri_type_equal_function_arguments_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
 {
     if (a0->count != a1->count) {
         return false;
@@ -636,7 +636,7 @@ ri_compare_function_arg_types_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
         RI_CHECK(it0->decl.spec->kind == RiNode_Spec_Var);
         RI_CHECK(it1->kind == RiNode_Decl);
         RI_CHECK(it1->decl.spec->kind == RiNode_Spec_Var);
-        if (ri_compare_types_(ri, ri_get_spec_(ri, it0->decl.spec->spec.var.type), ri_get_spec_(ri, it1->decl.spec->spec.var.type)) == false) {
+        if (ri_type_equal_(ri, ri_get_spec_(ri, it0->decl.spec->spec.var.type), ri_get_spec_(ri, it1->decl.spec->spec.var.type)) == false) {
             return false;
         }
     }
@@ -645,7 +645,7 @@ ri_compare_function_arg_types_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
 }
 
 static bool
-ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1)
+ri_type_equal_(Ri* ri, RiNode* t0, RiNode* t1)
 {
     RI_CHECK(t0 && ri_is_in(t0->kind, RiNode_Spec_Type));
     RI_CHECK(t1 && ri_is_in(t1->kind, RiNode_Spec_Type));
@@ -662,12 +662,12 @@ ri_compare_types_(Ri* ri, RiNode* t0, RiNode* t1)
     {
         case RiNode_Spec_Type_Func:
             return (
-                ri_compare_function_arg_types_(ri, &t0->spec.type.func.inputs, &t1->spec.type.func.inputs) &&
-                ri_compare_function_arg_types_(ri, &t0->spec.type.func.outputs, &t1->spec.type.func.outputs)
+                ri_type_equal_function_arguments_(ri, &t0->spec.type.func.inputs, &t1->spec.type.func.inputs) &&
+                ri_type_equal_function_arguments_(ri, &t0->spec.type.func.outputs, &t1->spec.type.func.outputs)
             );
 
         case RiNode_Spec_Type_Pointer:
-            return ri_compare_types_(ri, t0->spec.type.pointer.base, t1->spec.type.pointer.base);
+            return ri_type_equal_(ri, t0->spec.type.pointer.base, t1->spec.type.pointer.base);
 
         case RiNode_Spec_Type_None:
             return true;
@@ -710,7 +710,7 @@ ri_set_type_identity_(Ri* ri, RiNode* node)
 
     RiNode* it;
     array_eachi(&ri->types, i, &it) {
-        if (ri_compare_types_(ri, it, node)) {
+        if (ri_type_equal_(ri, it, node)) {
             node->spec.type.identity = it;
             return;
         }
@@ -806,10 +806,21 @@ ri_retof_(Ri* ri, RiNode* node)
                 return array_at(&node->call.arguments, 0);
             case RiNode_Expr_Call: {
                 RI_CHECK(node->call.func);
-                RI_CHECK(node->call.func->kind == RiNode_Value_Func);
-                RiNode* func_spec = node->call.func->value.spec;
-                RiNode* func_type = func_spec->spec.func.type;
-                RI_CHECK(func_spec->spec.func.type);
+                RiNode* func = node->call.func;
+                RiNode* func_type = NULL;
+                switch (node->call.func->kind)
+                {
+                    case RiNode_Value_Var:
+                        func_type = ri_get_spec_(ri, func->value.spec->spec.var.type);
+                        break;
+                    case RiNode_Value_Func:
+                        func_type = ri_get_spec_(ri, func->value.spec->spec.func.type);
+                        break;
+                    default:
+                        RI_UNREACHABLE;
+                        break;
+                }
+                RI_CHECK(func_type->kind == RiNode_Spec_Type_Func);
                 RiNodeArray* outputs = &func_type->spec.type.func.outputs;
                 switch (outputs->count)
                 {
@@ -2403,7 +2414,8 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
             }
         }
         return RiWalk_Continue;
-    } else switch (n->kind)
+    }
+    else switch (n->kind)
     {
         case RiNode_Module:
             return ri_walk_(ri, &n->module.scope, f, context);
@@ -2463,7 +2475,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return ri_walk_(ri, &n->st_return.argument, f, context);
             }
             return RiWalk_Continue;
-            
+
         case RiNode_St_If:
             if (n->st_if.pre && ri_walk_(ri, &n->st_if.pre, f, context) == RiWalk_Error) {
                 return RiWalk_Error;
@@ -3064,7 +3076,7 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
         if (t0 == NULL || t1 == NULL) {
             // Error.
             return NULL;
-        } else if (t0 == t1) {
+        } else if (ri_type_equal_(ri, t0, t1)) {
             // Types are the same, so return one.
             if (d0 == false) {
                 RI_CHECK(d1 == false);
@@ -3104,7 +3116,7 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
         if (t0 == NULL || t1 == NULL) {
             // Error.
             return NULL;
-        } else if (t0 == t1) {
+        } else if (ri_type_equal_(ri, t0, t1)) {
             // Types are the same, so return one.
         } else {
             // Types are different, so return the more dominant one.
@@ -3218,7 +3230,9 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
                     RI_CHECK(var->kind == RiNode_Decl);
                     RI_CHECK(var->decl.spec->kind == RiNode_Spec_Var);
                     var->decl.spec->spec.var.type = t1;
-                } else if (t0 != t1) {
+                }
+                else if (!ri_type_equal_(ri, t0, t1))
+                {
                     if (
                         (
                             t0->kind == RiNode_Spec_Type_Number_Float64 ||

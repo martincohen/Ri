@@ -3,3 +3,4 @@ func pow2(x int32) int32 {
 }
 type MyFunc func(_ int32) int32;
 var a MyFunc = pow2;
+a(4);

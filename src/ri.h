@@ -413,6 +413,8 @@ union RiLiteral {
 struct RiNode
 {
     RiNodeKind kind;
+    // Scope that owns this node.
+    // We can get rid of this pointer but we'll have to maintain a scope stack for every walk.
     RiNode* owner;
     // TODO: Only used for debug.
     int index;
@@ -428,6 +430,7 @@ struct RiNode
 
         struct {
             Map map;
+            // TODO: Doesn't seem to be essential.
             RiNodeArray decl;
             RiNodeArray statements;
         } scope;
