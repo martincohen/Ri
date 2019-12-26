@@ -552,7 +552,7 @@ struct RiNode
         struct {
             // NOTE: Can be NULL.
             RiNode* pre;
-            // NOTE: Cannot be NULL.
+            // NOTE: Always present.
             RiNode* expr;
             // NOTE: Always present.
             RiNode* scope;

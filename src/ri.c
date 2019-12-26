@@ -2456,6 +2456,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
         case RiNode_Value_Constant:
             return ri_walk_(ri, &n->value.constant.type, f, context);
 
+        case RiNode_Expr_Cast:
         case RiNode_Expr_Call:
             if (ri_walk_(ri, &n->call.func, f, context)) {
                 array_each(&n->call.arguments, &it) {
@@ -2947,26 +2948,20 @@ static RIWALK_F(ri_resolve_node_)
         case RiNode_Id:
             return ri_resolve_identifier_(ri, node, context);
 
-        case RiNode_Expr_Cast: {
-
-        } break;
-
         case RiNode_Expr_Call: {
             if (ri_walk_(ri, &n->call.func, &ri_resolve_node_, context) == RiWalk_Error) {
                 return RiWalk_Error;
             }
 
-            RiNode* callable = n->call.func;
+            RiNode* callable = ri_get_spec_(ri, n->call.func);
             if (ri_is_in(callable->kind, RiNode_Spec_Type))
             {
                 if (n->call.arguments.count != 1) {
                     ri_error_set_(ri, RiError_Argument, n->pos, "1 argument expected");
                     return false;
                 }
-                // NOTE: Turn from type_to(expr) to cast(type_to, expr).
-                // NOTE: We'll be called again with RiNode_Expr_Cast.
                 n->kind = RiNode_Expr_Cast;
-                array_insert(&n->call.arguments, 0, type_to);
+                array_insert(&n->call.arguments, 0, callable);
             }
             else switch (callable->kind)
             {
@@ -2977,6 +2972,7 @@ static RIWALK_F(ri_resolve_node_)
                     RI_UNREACHABLE;
                     break;
             }
+        } break;
     }
 
     return RiWalk_Continue;
@@ -2994,6 +2990,8 @@ ri_resolve(Ri* ri, RiNode* node)
 //
 //
 //
+
+static RiNode* ri_type_patch_node_(Ri* ri, RiNode* node);
 
 static void
 ri_type_patch_cast_const_(Ri* ri, RiNode* expr, RiNode* type)
@@ -3032,48 +3030,49 @@ ri_type_patch_get_untyped_default_type_(Ri* ri, RiNodeKind untyped)
 static RiNode*
 ri_type_patch_expr_cast_(Ri* ri, RiNode* node)
 {
-    RI_CHECK(node->call.arguments.count, 2);
+    RI_CHECK(node->call.arguments.count == 2);
 
-    RiNode* type_to = node->call.arguments.items[0];
-    RiNode* type_from = node->call.arguments.items[1];
+    RiNode* type_to = ri_get_spec_(ri, node->call.arguments.items[0]);
+    RiNode* type_from = ri_type_patch_node_(ri, node->call.arguments.items[1]);
 
-    RiNodeKind type_from_kind = type_expr->kind;
-    RiNodeKind type_to_kind = type_to->kind;
+    // TODO: Warn if the cast is something unexpected (float to pointer, func to func of incompatible type)
 
-    RI_CHECK(type_from_kind, RiNode_Spec_Type);
-    RI_CHECK(type_to_kind, RiNode_Spec_Type);
+    // RiNodeKind type_from_kind = type_from->kind;
+    // RiNodeKind type_to_kind = type_to->kind;
 
-    bool from_bool = type_from_kind == RiNode_Spec_Type_Number_Bool;
-    bool from_int = ri_is_in(type_from_kind, RiNode_Spec_Type_Number_Int);
-    bool from_float = ri_is_in(type_from_kind, RiNode_Spec_Type_Number_Float);
+    // RI_CHECK(ri_is_in(type_from_kind, RiNode_Spec_Type));
+    // RI_CHECK(ri_is_in(type_to_kind, RiNode_Spec_Type));
 
-    bool to_bool = type_to_kind == RiNode_Spec_Type_Number_Bool;
-    bool to_int = ri_is_in(type_to_kind, RiNode_Spec_Type_Number_Int);
-    bool to_float = ri_is_in(type_to_kind, RiNode_Spec_Type_Number_Float);
+    // bool from_bool = type_from_kind == RiNode_Spec_Type_Number_Bool;
+    // bool from_int = ri_is_in(type_from_kind, RiNode_Spec_Type_Number_Int);
+    // bool from_float = ri_is_in(type_from_kind, RiNode_Spec_Type_Number_Float);
 
-    // TODO: Allow casts for bool to pointers too?
+    // bool to_bool = type_to_kind == RiNode_Spec_Type_Number_Bool;
+    // bool to_int = ri_is_in(type_to_kind, RiNode_Spec_Type_Number_Int);
+    // bool to_float = ri_is_in(type_to_kind, RiNode_Spec_Type_Number_Float);
 
-    if (type_from_kind == type_to_kind) {
-        // TODO: Warn of unnecessary cast.
-    } else if (from_int && to_int) {
-        // Allow from any int to any int.
-    } else if (from_int && to_float) {
-        // Allow from any int to any float.
-    } else if (from_float && to_float) {
-        // Allow from any float to any float.
-    } else if (from_float && to_int) {
-        // Allow cast from any float to any int.
-    } else if (from_bool && to_int) {
-        // Allow bool to any int.
-    } else if (from_bool && to_float) {
-        // Allow bool to any float.
-    } else {
-        ri_error_set_(ri, RiError_Type, n->pos, "cannot cast from %S to %S",
-            ri->node_meta[type_from_kind].node->spec.id,
-            ri->node_meta[type_to_kind].node->spec.id
-        );
-        return NULL;
-    }
+    // if (type_from_kind == type_to_kind) {
+    //     // TODO: Warn of unnecessary cast.
+    // } else if (from_int && to_int) {
+    //     // Allow from any int to any int.
+    // } else if (from_int && to_float) {
+    //     // Allow from any int to any float.
+    // } else if (from_float && to_float) {
+    //     // Allow from any float to any float.
+    // } else if (from_float && to_int) {
+    //     // Allow cast from any float to any int.
+    // } else if (from_bool && to_int) {
+    //     // Allow bool to any int.
+    // } else if (from_bool && to_float) {
+    //     // Allow bool to any float.
+    // } else {
+    //     // TODO: Would fail on Func type.
+    //     ri_error_set_(ri, RiError_Type, node->pos, "cannot cast from %S to %S",
+    //         ri->node_meta[type_from_kind].node->spec.id,
+    //         ri->node_meta[type_to_kind].node->spec.id
+    //     );
+    //     return NULL;
+    // }
 
     return type_to;
 }
