@@ -12,7 +12,7 @@ testrivm_interpreter_exec_file_(const char* name, void* host)
     array_zero_term(&path_source);
 
     rivm_compile_file(path_source.slice, &module, host);
-    
+
     RiVmExec context;
     rivm_exec_init(&context);
     // RiVmValue args[] = { 0 };
@@ -25,7 +25,7 @@ testrivm_interpreter_exec_file_(const char* name, void* host)
     );
     t = perf_get() - t;
     rivm_exec_purge(&context);
-    
+
     array_purge(&path_source);
     rivm_module_purge(&module);
 
@@ -34,11 +34,15 @@ testrivm_interpreter_exec_file_(const char* name, void* host)
     return value;
 }
 
+void host_print(int32_t i) {
+    LOG("%d", i);
+}
+
 void
 testrivm_interpreter_exec() {
     // ASSERT(testrivm_interpreter_exec_file_("test1").i32 == 2);
     // ASSERT(testrivm_interpreter_exec_file_("fib34", 0).i32 == 5702887);
-    ASSERT(testrivm_interpreter_exec_file_("host", (void*)(uint64_t)(-1)).u64 == (uint64_t)(-1));
+    ASSERT(testrivm_interpreter_exec_file_("host-call", &host_print).u64 == (uint64_t)(-1));
 }
 
 void

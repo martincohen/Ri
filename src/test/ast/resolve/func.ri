@@ -1,0 +1,23 @@
+func f1() {}
+func f2(_ int32) {}
+func f3(_ int32, _ float32) {}
+func f4() int32 {}
+func f5(_ int32) int32 {}
+
+type F1 func();
+type F2 func(_ int32);
+type F3 func(_ int32, _ int32);
+type F4 func() int32;
+type F5 func(_ int32) int32;
+
+var v_f1 func();
+var v_f2 func(_ int32);
+var v_f3 func(_ int32, _ int32);
+var v_f4 func() int32;
+var v_f5 func(_ int32) int32;
+
+func a_f1(f func()) {};
+func a_f2(f func(_ int32)) {};
+func a_f3(f func(_ int32, _ int32)) {};
+func a_f4(f func(_ int32, _ int32) int32) {};
+func a_f5(f func(_ int32) int32, _ int32) {};

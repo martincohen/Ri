@@ -13,10 +13,10 @@
 
 int main(int argc, char** argv)
 {
-    testri_main();
+    // testri_main();
     // testrivm_compiler_main();
     // testrivm_dcall_main();
-    // testrivm_interpreter_main();
+    testrivm_interpreter_main();
 
     return 0;
 }

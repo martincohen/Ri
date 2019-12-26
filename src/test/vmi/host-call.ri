@@ -1,0 +1,5 @@
+func main() {
+    type HostFunc func(i int32);
+    var a HostFunc = HostFunc(host);
+    a(4);
+}

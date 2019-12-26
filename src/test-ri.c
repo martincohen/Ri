@@ -151,7 +151,8 @@ testri_file_(const char* name, TestRiMode mode)
 void
 testri_resolve() {
 
-    testri_file_("resolve/type-func", TestRi_Resolve);
+    testri_file_("resolve/func", TestRi_Resolve);
+    // testri_file_("resolve/type-func", TestRi_Resolve);
 
 #if 0
     testri_file_("parse/switch", TestRi_Parse);
