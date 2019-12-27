@@ -317,6 +317,16 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
     } else {
         switch (ast_expr->kind)
         {
+            case RiNode_Expr_Cast: {
+                RiNode* type = ast_expr->call.arguments.items[0];
+                RiVmParam result = rivm_acquire_slot_(
+                    compiler,
+                    RiSlot_Temporary,
+                    rivm_get_type_(compiler, type)
+                );
+                rivm_code_emit_(&compiler->code, Cast, )
+            } break;
+
             case RiNode_Expr_Call: {
                 RiNodeArray* arguments = &ast_expr->call.arguments;
                 for (iptr i = 0; i < arguments->count; ++i)
@@ -338,7 +348,11 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 //     rivm_code_emit(&compiler->code, Arg, result_addr);
                 // }
 
-                RiVmParam result = result = rivm_acquire_slot_(compiler, RiSlot_Temporary, RiVmValue_I32);
+                RiVmParam result = rivm_acquire_slot_(
+                    compiler,
+                    RiSlot_Temporary,
+                    rivm_get_type_(comiler, type)
+                );
 
                 rivm_code_emit(&compiler->code,
                     Call,

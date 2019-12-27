@@ -1045,6 +1045,7 @@ ri_make_decl_(Ri* ri, RiPos pos, RiNode* spec)
 
     RiNode* node = ri_make_node_(ri, pos, RiNode_Decl);
     node->decl.spec = spec;
+    array_push(&node->owner->scope.decl, node);
     return node;
 }
 
@@ -2860,8 +2861,6 @@ static RIWALK_F(ri_resolve_decl_)
     }
     spec->spec.state = RiSpec_Resolved;
     RI_CHECK(decl->decl.spec == spec);
-
-    array_push(&decl->owner->scope.decl, decl);
 
     return true;
 }
