@@ -5,12 +5,18 @@
 - https://github.com/luciotato/golang-notes/blob/master/OOP.md
 - https://github.com/orangeduck/Cello
 - https://github.com/orangeduck/mpc
+- https://www.youtube.com/watch?v=eF9qWbuQLuw&list=PLzLzYGEbdY5n9ITKUqOuRjXkRU5tMW2Sd&index=2
+- https://blog.golang.org/gos-declaration-syntax
+- https://talks.golang.org/2012/10things.slide
 
 See README.md for high-level tasks.
 
 ## Next
 
 ### VM
+
+GOAL: Compiles into three-address code, interprets three-address code in a straightforward manner. (baseline performance)
+
 
 - [x] Draft instruction set
 - [x] Draft functions
@@ -20,11 +26,38 @@ See README.md for high-level tasks.
 - [x] Support for constant types? (resolved in AST)
 - [x] Draft calls
 - [x] Merge `call` and `arg-pop-n`.
+- [x] Draft VM execution
+- [x] Baseline compiler infrastructure.
+- [x] Call compilation.
+- [x] Calling C functions.
 
 - [ ] Compile "root" as module-init function.
 - [ ] Draft constant folding
-- [ ] Draft VM execution
 - [ ] Draft x64 compilation
+- [ ] Allow per-function compilation so we can try compile-time execution.
+- [ ] Casting.
+    - signed -> unsigned
+    - unsigned -> signed
+    - float promotion
+    - float demotion
+    - float32 -> integer (trunc_signed, trunc_unsigned)
+    - float64 -> integer (trunc_signed, trunc_unsigned)
+    - integer -> float32
+    - integer -> float64
+    - integer promotion
+    - integer demotion
+    - reinterpret
+
+- [ ] Either distinguish between VM and C functions when calling, or make VM functions called via standard C calling convention.
+    - Each function will be wrapped in a generated x64 code that translates arguments array to registers (and stack) and calls `rivm_exec`.
+- [ ] Draft register allocation
+    - 2 variants:
+        a) Allocate all parameters in registers, the rest goes to memory.
+            - Use virtual slots to do the allocation so the strategy can be changed.
+        b) Use two-register stack machine unwinding.
+            - All variables are in "stack" memory.
+            - We pull and push as we need.
+            - We keep the two top-most in registers.
 
 ### AST
 
@@ -98,12 +131,6 @@ See README.md for high-level tasks.
 
 - [ ] Testing error states.
 
-# Read
-
-- https://www.youtube.com/watch?v=eF9qWbuQLuw&list=PLzLzYGEbdY5n9ITKUqOuRjXkRU5tMW2Sd&index=2
-- https://blog.golang.org/gos-declaration-syntax
-- https://talks.golang.org/2012/10things.slide
-
 # Later
 
 - [ ] Non-critical errors should not panic.
@@ -125,45 +152,6 @@ See README.md for high-level tasks.
 - [ ] Implement this?
         - `var main function(...)`
         - `main = { ... }`
-
-## Compiler
-
-GOAL: Three-address code bytecode.
-
-- [x] Baseline compiler infrastructure.
-- [x] Call compilation.
-- [x] Calling C functions.
-
-- [ ] Allow per-function compilation so we can try compile-time execution.
-- [ ] Casting.
-    - signed -> unsigned
-    - unsigned -> signed
-    - float promotion
-    - float demotion
-    - float32 -> integer (trunc_signed, trunc_unsigned)
-    - float64 -> integer (trunc_signed, trunc_unsigned)
-    - integer -> float32
-    - integer -> float64
-    - integer promotion
-    - integer demotion
-    - reinterpret
-
-## Interpreter
-
-GOAL: Interprets three-address code in a straightforward manner. (baseline performance)
-
-- [ ] Either distinguish between VM and C functions when calling, or make VM functions called via standard C calling convention.
-    - Each function will be wrapped in a generated x64 code that translates arguments array to registers (and stack) and calls `rivm_exec`.
-
-### Interpreter / Later
-- Register allocation
-    - 2 variants:
-        a) Allocate all parameters in registers, the rest goes to memory.
-            - Use virtual slots to do the allocation so the strategy can be changed.
-        b) Use two-register stack machine unwinding.
-            - All variables are in "stack" memory.
-            - We pull and push as we need.
-            - We keep the two top-most in registers.
 
 # Future
 

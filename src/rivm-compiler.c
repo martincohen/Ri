@@ -183,7 +183,7 @@ rivm_acquire_slot_(RiVmCompiler* compiler, RiVmParamSlotKind kind, RiVmValueType
     // RI_LOG_DEBUG("allocating %s slot %d of type %s",
     //     RIVM_DEBUG_SOURCE_NAMES_[kind],
     //     index,
-    //     RIVM_DEBUG_TYPE_NAMES_[type]
+    //     RIVM_DUMP_TYPE_NAMES_[type]
     // );
 
     return param;
@@ -295,25 +295,17 @@ rivm_get_param_(RiVmCompiler* compiler, RiNode* ast_var)
     return rivm_get_slot_param_(compiler, spec->spec.var.slot);
 }
 
-static RiVmParam
-rivm_get_param_for_output_(RiVmCompiler* compiler, int output_index)
-{
-    RiNode* ast_func_type = compiler->ast_func->spec.func.type;
-    RiNode* output = array_at(&ast_func_type->spec.type.func.outputs, output_index);
-    return rivm_get_slot_param_(compiler, output->decl.spec->spec.var.slot);
-}
-
-//
-//
-//
-
-// static void
-// rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
+// static RiVmParam
+// rivm_get_param_for_output_(RiVmCompiler* compiler, int output_index)
 // {
-//     switch (ast_st->kind)
-//     {
-//     }
+//     RiNode* ast_func_type = compiler->ast_func->spec.func.type;
+//     RiNode* output = array_at(&ast_func_type->spec.type.func.outputs, output_index);
+//     return rivm_get_slot_param_(compiler, output->decl.spec->spec.var.slot);
 // }
+
+//
+//
+//
 
 static RiVmParam
 rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
@@ -446,7 +438,9 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
     else switch (ast_st->kind)
     {
         case RiNode_Decl: {
-            // Skip.
+            if (ast_st->decl.spec->kind == RiNode_Spec_Func) {
+                array_push(&compiler->pending, ast_st->decl.spec);
+            }
         } break;
 
         case RiNode_St_Return: {
@@ -526,20 +520,31 @@ rivm_acquire_func_args_(RiVmCompiler* compiler, RiVmParamSlotKind source, RiNode
 static RiVmFunc*
 rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
 {
-    compiler->ast_func = ast_func;
+    RI_CHECK(ast_func->kind == RiNode_Spec_Func || ast_func->kind == RiNode_Module);
 
-    RiNode* ast_func_type = ast_func->spec.func.type;
-    // Allocate slots for input and output parameters.
-    rivm_acquire_func_args_(compiler, RiSlot_Input, &ast_func_type->spec.type.func.inputs);
-    // TODO: Multiple return values.
-    iptr outputs_count = ast_func_type->spec.type.func.outputs.count;
-    RI_ASSERT(outputs_count < 2);
-    // rivm_acquire_func_args_(compiler, RiSlot_Output, &ast_func_type->spec.type.func.outputs);
+    RiNode* ast_scope = NULL;
+    RiNode* ast_func_type = NULL;
+    iptr outputs_count = 0;
+    if (ast_func->kind == RiNode_Spec_Func)
+    {
+        ast_func_type = ast_func->spec.func.type;
+        // Allocate slots for input and output parameters.
+        rivm_acquire_func_args_(compiler, RiSlot_Input, &ast_func_type->spec.type.func.inputs);
+        // TODO: Multiple return values.
+        outputs_count = ast_func_type->spec.type.func.outputs.count;
+        RI_ASSERT(outputs_count < 2);
+
+        ast_scope = ast_func->spec.func.scope;
+    }
+    else
+    {
+        ast_scope = ast_func->module.scope;
+    }
 
     uint32_t slot_locals = compiler->slot_next;
     uint32_t enter_index = rivm_code_emit(&compiler->code, Enter);
     {
-        rivm_compile_st_(compiler, ast_func->spec.func.scope);
+        rivm_compile_st_(compiler, ast_scope);
     }
     RiVmInst* enter = &array_at(&compiler->code, enter_index);
     enter->param0 = rivm_make_param(Imm,
@@ -554,8 +559,10 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     }
 
     RiVmFunc* func = rivm_module_push_func(compiler->module, compiler->code.slice);
-    func->debug_inputs_count = ast_func_type->spec.type.func.inputs.count;
-    func->debug_outputs_count = outputs_count;
+    if (ast_func->kind == RiNode_Spec_Func) {
+        func->debug_inputs_count = ast_func_type->spec.type.func.inputs.count;
+        func->debug_outputs_count = outputs_count;
+    }
     compiler->code = (RiVmInstArray){0};
 
     array_clear(&compiler->slot_pool);
@@ -611,18 +618,16 @@ bool
 rivm_compile(RiVmCompiler* compiler, RiNode* ast_module, RiVmModule* module)
 {
     compiler->module = module;
-
     RI_ASSERT(ast_module->kind == RiNode_Module);
+    array_push(&compiler->pending, ast_module);
+
     RiNode* ast_scope = ast_module->module.scope;
 
-    RiNode** ast_decl = ast_scope->scope.decl.items;
-    for (iptr i = 0; i < ast_scope->scope.decl.count; ++i, ++ast_decl)
+    while (compiler->pending.count)
     {
-        RI_ASSERT((*ast_decl)->kind == RiNode_Decl);
-        RiNode* ast_spec = (*ast_decl)->decl.spec;
-        if (ast_spec->kind == RiNode_Spec_Func) {
-            rivm_compile_func_(compiler, ast_spec);
-        }
+        RiNode* spec = array_at(&compiler->pending, 0);
+        array_remove(&compiler->pending, 0, 1);
+        rivm_compile_func_(compiler, spec);
     }
 
     rivm_patch_(compiler, module);

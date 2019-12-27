@@ -5,7 +5,7 @@
 #define RIVM_DUMP_PARAM_TYPE_ ""
 #endif
 
-const char* RIVM_DEBUG_OP_NAMES_[] = {
+const char* RIVM_DUMP_OP_NAMES_[] = {
     #define RIVM_GROUP_START(Name) [RiVmOp_ ## Name ## _FIRST__] = NULL,
     #define RIVM_GROUP_END(Name) [RiVmOp_ ## Name ## _LAST__] = NULL,
     #define RIVM_INST(Name, S) [RiVmOp_ ## Name] = S,
@@ -17,7 +17,7 @@ const char* RIVM_DEBUG_OP_NAMES_[] = {
     #undef RIVM_GROUP_START
 };
 
-const char* RIVM_DEBUG_TYPE_NAMES_[] = {
+const char* RIVM_DUMP_TYPE_NAMES_[] = {
     [RiVmValue_None] = "none",
     [RiVmValue_I32] = "i32",
     [RiVmValue_I64] = "i64",
@@ -27,7 +27,7 @@ const char* RIVM_DEBUG_TYPE_NAMES_[] = {
     [RiVmValue_F64] = "f64",
 };
 
-const char* RIVM_DEBUG_TYPE_NAMES_SHORT_[] = {
+const char* RIVM_DUMP_TYPE_NAMES_SHORT_[] = {
     [RiVmValue_None] = "?",
     [RiVmValue_I32] = "i",
     [RiVmValue_I64] = "I",
@@ -35,6 +35,15 @@ const char* RIVM_DEBUG_TYPE_NAMES_SHORT_[] = {
     [RiVmValue_U64] = "U",
     [RiVmValue_F32] = "f",
     [RiVmValue_F64] = "F",
+};
+
+const char* RIVM_DUMP_SLOT_KIND_[] = {
+    [RiSlot_Unknown] = "?",
+    [RiSlot_Input] = "i",
+    [RiSlot_Output] = "o",
+    [RiSlot_Local] = "l",
+    [RiSlot_Global] = "g",
+    [RiSlot_Temporary] = "t",
 };
 
 static void
@@ -46,10 +55,10 @@ rivm_dump_param_(RiVmParam* param, CharArray* out)
             break;
         case RiVmParam_Imm:
             switch (param->type) {
-                case RiVmValue_I32: chararray_push_f(out, "%"PRIi32 RIVM_DUMP_PARAM_TYPE_ "", param->imm.i32, RIVM_DEBUG_TYPE_NAMES_SHORT_[param->type]); break;
-                case RiVmValue_I64: chararray_push_f(out, "%"PRIi64 RIVM_DUMP_PARAM_TYPE_ "", param->imm.i64, RIVM_DEBUG_TYPE_NAMES_SHORT_[param->type]); break;
-                case RiVmValue_U32: chararray_push_f(out, "%"PRIu32 RIVM_DUMP_PARAM_TYPE_ "", param->imm.u32, RIVM_DEBUG_TYPE_NAMES_SHORT_[param->type]); break;
-                case RiVmValue_U64: chararray_push_f(out, "%"PRIu64 RIVM_DUMP_PARAM_TYPE_ "", param->imm.u64, RIVM_DEBUG_TYPE_NAMES_SHORT_[param->type]); break;
+                case RiVmValue_I32: chararray_push_f(out, "%"PRIi32 RIVM_DUMP_PARAM_TYPE_ "", param->imm.i32, RIVM_DUMP_TYPE_NAMES_SHORT_[param->type]); break;
+                case RiVmValue_I64: chararray_push_f(out, "%"PRIi64 RIVM_DUMP_PARAM_TYPE_ "", param->imm.i64, RIVM_DUMP_TYPE_NAMES_SHORT_[param->type]); break;
+                case RiVmValue_U32: chararray_push_f(out, "%"PRIu32 RIVM_DUMP_PARAM_TYPE_ "", param->imm.u32, RIVM_DUMP_TYPE_NAMES_SHORT_[param->type]); break;
+                case RiVmValue_U64: chararray_push_f(out, "%"PRIu64 RIVM_DUMP_PARAM_TYPE_ "", param->imm.u64, RIVM_DUMP_TYPE_NAMES_SHORT_[param->type]); break;
                 default: RI_UNREACHABLE; break;
             }
             break;
@@ -57,7 +66,7 @@ rivm_dump_param_(RiVmParam* param, CharArray* out)
             chararray_push_f(out, "_%d", param->label);
             break;
         case RiVmParam_Slot:
-            chararray_push_f(out, "t%d" RIVM_DUMP_PARAM_TYPE_, param->slot.index, RIVM_DEBUG_TYPE_NAMES_SHORT_[param->type]);
+            chararray_push_f(out, "%s%d" RIVM_DUMP_PARAM_TYPE_, RIVM_DUMP_SLOT_KIND_[param->slot.kind], param->slot.index, RIVM_DUMP_TYPE_NAMES_SHORT_[param->type]);
             break;
         case RiVmParam_Func:
             chararray_push_f(out, "func%d", param->func);
@@ -99,7 +108,7 @@ rivm_dump_func(RiVmFunc* func, CharArray* out)
         rivm_dump_param_(&it->param1, &s1);
         rivm_dump_param_(&it->param2, &s2);
 
-        const char* sop = RIVM_DEBUG_OP_NAMES_[it->op];
+        const char* sop = RIVM_DUMP_OP_NAMES_[it->op];
 
         chararray_push_f(out, "    %4d (", i);
         if (rivm_op_is_in(it->op, Binary)) {

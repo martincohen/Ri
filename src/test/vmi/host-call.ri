@@ -1,5 +1,7 @@
-func main() {
-    type HostFunc func(i int32);
-    var a HostFunc = HostFunc(host);
-    a(4);
-}
+type HostFunc func(i int32);
+
+var a HostFunc = HostFunc(host);
+a(4);
+
+var b = HostFunc(host);
+b(4);

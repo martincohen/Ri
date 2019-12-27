@@ -1,6 +1,8 @@
 #include <co-lib.c>
 
 #include "ri.c"
+#include "ri-dump.c"
+
 #include "rivm.c"
 #include "rivm-compiler.c"
 #include "rivm-interpreter.c"

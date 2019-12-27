@@ -55,7 +55,7 @@ enum RiErrorKind {
     RiError_CyclicType,
     RiError_Type,
     RiError_UnknownType,
-    RiError_Argument,
+    RiError_Argument
 };
 
 struct RiError {
@@ -584,6 +584,7 @@ struct Ri {
     RiToken token;
     RiNode* scope;
     RiNode* module;
+    RiNode* func;
     RiNodeArray pending;
     RiNodeArray types;
 
@@ -626,7 +627,6 @@ struct Ri {
 
 void ri_init(Ri* ri, void* host);
 void ri_purge(Ri* ri);
-void ri_log(Ri* ri, RiNode* node);
 RiNode* ri_parse(Ri* ri, String stream, String path);
 RiNode* ri_resolve(Ri* ri, RiNode* node);
 RiNode* ri_build(Ri* ri, String stream, String path);

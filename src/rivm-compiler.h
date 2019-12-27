@@ -21,8 +21,9 @@ struct RiVmCompiler
     Array(RiVmParam) slot;
 
     Array(uint32_t) labels;
+    RiNodeArray pending;
 
-    RiNode* ast_func;
+    // RiNode* ast_func;
 };
 
 void rivm_init(RiVmCompiler* rix, Ri* ri);
