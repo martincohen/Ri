@@ -2,6 +2,7 @@
 
 ## Read
 
+- https://github.com/luciotato/golang-notes/blob/master/OOP.md
 - https://github.com/orangeduck/Cello
 - https://github.com/orangeduck/mpc
 
