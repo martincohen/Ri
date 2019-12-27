@@ -29,6 +29,8 @@ See README.md for high-level tasks.
 ### AST
 
 - [x] Ignore named return values (we'll do multiple return values and named return values later).
+- [ ] Ri calling convention passing a pointer to current `context` as first argument.
+    - This will be simply determined by the signature of the function we're calling, if the signature has `*RiContext` as first argument, we'll inject it as one, otherwise we'll just call using platform's native calling convention.
 - [ ] Rework `constant` node as it's messy now. Probably also add support for initializers.
 - [ ] Merge same types. See assignability rules here: https://golang.org/ref/spec#Assignability
 - [ ] `nil` as predefined identifier
@@ -130,16 +132,28 @@ GOAL: Three-address code bytecode.
 
 - [x] Baseline compiler infrastructure.
 - [x] Call compilation.
+- [x] Calling C functions.
 
-- [ ] Calling C functions.
 - [ ] Allow per-function compilation so we can try compile-time execution.
+- [ ] Casting.
+    - signed -> unsigned
+    - unsigned -> signed
+    - float promotion
+    - float demotion
+    - float32 -> integer (trunc_signed, trunc_unsigned)
+    - float64 -> integer (trunc_signed, trunc_unsigned)
+    - integer -> float32
+    - integer -> float64
+    - integer promotion
+    - integer demotion
+    - reinterpret
 
 ## Interpreter
 
 GOAL: Interprets three-address code in a straightforward manner. (baseline performance)
 
-- [ ] Call interpretation.
-    - [ ] Calling functions with `rivm_exec(func, ...)`.
+- [ ] Either distinguish between VM and C functions when calling, or make VM functions called via standard C calling convention.
+    - Each function will be wrapped in a generated x64 code that translates arguments array to registers (and stack) and calls `rivm_exec`.
 
 ### Interpreter / Later
 - Register allocation

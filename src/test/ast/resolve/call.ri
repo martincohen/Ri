@@ -1,0 +1,10 @@
+func foo() {}
+
+// Call function.
+foo();
+
+var a = foo;
+// Call variable.
+a();
+// Call expression.
+(a + 1)();

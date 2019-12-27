@@ -123,6 +123,8 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
             case RiVmOp_Ret:
                 switch (inst->param0.kind)
                 {
+                    case RiVmParam_None:
+                        break;
                     case RiVmParam_Imm:
                         result.u64 = inst->param0.imm.u64;
                         break;
@@ -134,6 +136,7 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
                 rivm_stack_pop(&context->stack, locals_count);
                 goto end;
 
+            case RiVmOp_Cast:
             case RiVmOp_Assign:
                 switch (inst->param1.kind)
                 {
@@ -147,7 +150,7 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
                 }
                 break;
 
-            case RiVmOp_Arg: {
+            case RiVmOp_CallArg: {
                 switch (inst->param0.kind)
                 {
                     case RiVmParam_Imm:
@@ -161,39 +164,51 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
             } break;
 
             case RiVmOp_Call: {
-                RiVmFunc* callee_func = inst->param1.func;
-                RiVmValue callee_result = rivm_exec_(context, context->stack.it - inst->param2.imm.u64, callee_func);
-                get_local(inst->param0).u64 = callee_result.u64;
-                rivm_stack_pop(&context->stack, inst->param2.imm.u64);
-            } break;
-
-            case RiVmOp_CallC: {
-                __debugbreak();
-
-                void* callee_func = inst->param1.func;
-                // NOTE: Return type is given by type of the result slot, so compiler has to make sure that the type is correct and do casting/masking needed afterwards.
-                uint64_t args_count = inst->param2.imm.u64;
+                if (inst->param1.kind == RiVmParam_Func) {
+                    RiVmFunc* callee_func = inst->param1.func;
+                    RiVmValue callee_result = rivm_exec_(context, context->stack.it - inst->param2.imm.u64, callee_func);
+                    get_local(inst->param0).u64 = callee_result.u64;
+                    rivm_stack_pop(&context->stack, inst->param2.imm.u64);
+                } else {
+                    void* callee_func = 0;
+                    switch (inst->param1.kind) {
+                        case RiVmParam_Imm:
+                            callee_func = inst->param1.func;
+                            break;
+                        case RiVmParam_Slot:
+                            callee_func = get_local(inst->param1).ptr;
+                            break;
+                        default:
+                            RI_UNREACHABLE;
+                            break;
+                    };
+                    // NOTE: Return type is given by type of the result slot, so compiler has to make sure that the type is correct and do casting/masking needed afterwards.
+                    uint64_t args_count = inst->param2.imm.u64;
+                    // NOTE: Do this before we align the stack for x64 calling convention.
+                    RiVmValue* args = context->stack.it - args_count;
 #if defined(SYSTEM_WINDOWS)
-                // NOTE: On windows dcall is written so it's reading 4 arguments past the args pointer, so we fill in space on stack.
-                rivm_stack_push(&context->stack, MAXIMUM(0, 4 - args_count));
+                    // NOTE: On windows dcall is written so it's reading 4 arguments past the args pointer, so we fill in space on stack.
+                    rivm_stack_push(&context->stack, MAXIMUM(0, 4 - args_count));
 #else
     #error Unsupported platform.
 #endif
-                uint64_t args_stack_count = MAXIMUM(0, (int64_t)args_count - 4);
-                RiVmValue* args = context->stack.it - args_count;
-                if (inst->param0.kind == RiVmParam_None) {
-                    ((RiVmDCallI64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func);
+                    uint64_t args_stack_count = MAXIMUM(0, (int64_t)args_count - 4);
+                    RiVmValue* args_stack = args + args_count;
+                    RiVmValue* args_registers = args;
+                    if (inst->param0.kind == RiVmParam_None) {
+                        ((RiVmDCallI64*)rivm_dcall)(args_stack_count, args_stack, args_registers, callee_func);
+                    }
+                    else switch (inst->param0.type)
+                    {
+                        // Return is always delivered in `RAX`.
+                        case RiVmValue_I64: case RiVmValue_I32: get_local(inst->param0).i64 = ((RiVmDCallI64*)rivm_dcall)(args_stack_count, args_stack, args_registers, callee_func); break;
+                        case RiVmValue_U64: case RiVmValue_U32: get_local(inst->param0).u64 = ((RiVmDCallU64*)rivm_dcall)(args_stack_count, args_stack, args_registers, callee_func); break;
+                        case RiVmValue_F64: get_local(inst->param0).f64 = ((RiVmDCallF64*)rivm_dcall)(args_stack_count, args_stack, args_registers, callee_func); break;
+                        case RiVmValue_F32: get_local(inst->param0).f32 = ((RiVmDCallF32*)rivm_dcall)(args_stack_count, args_stack, args_registers, callee_func); break;
+                        default: RI_UNREACHABLE; break;
+                    }
+                    rivm_stack_pop(&context->stack, args_count + MAXIMUM(0, 4 - args_count));
                 }
-                else switch (inst->param0.type)
-                {
-                    // Return is always delivered in `RAX`.
-                    case RiVmValue_I64: case RiVmValue_I32: get_local(inst->param0).i64 = ((RiVmDCallI64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
-                    case RiVmValue_U64: case RiVmValue_U32: get_local(inst->param0).u64 = ((RiVmDCallU64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
-                    case RiVmValue_F64: get_local(inst->param0).f64 = ((RiVmDCallF64*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
-                    case RiVmValue_F32: get_local(inst->param0).f32 = ((RiVmDCallF32*)rivm_dcall)(args_stack_count, args + args_count, args, callee_func); break;
-                    default: RI_UNREACHABLE; break;
-                }
-                rivm_stack_pop(&context->stack, args_count + MAXIMUM(0, 4 - args_count));
             } break;
 
             case RiVmOp_If: {

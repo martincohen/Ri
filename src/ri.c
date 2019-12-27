@@ -786,6 +786,18 @@ ri_retof_(Ri* ri, RiNode* node)
         // RI_ASSERT(ri_is_rt(node));
         switch (node->kind)
         {
+            // Ct
+            
+            case RiNode_Spec_Var:
+                return ri_get_spec_(ri, node->spec.var.type);
+            case RiNode_Spec_Func:
+                return ri_get_spec_(ri, node->spec.func.type);
+            case RiNode_Spec_Constant:
+                return ri_get_spec_(ri, node->spec.constant.type);
+
+
+            // Rt
+
             case RiNode_Value_Var:
                 // if (node->value.spec->kind == RiNode_Spec_Var) {
                 //     return node->value.type;

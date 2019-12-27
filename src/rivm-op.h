@@ -6,6 +6,10 @@ RIVM_INST(Ret, "ret")
 
 // Assign(A = B)
 RIVM_INST(Assign, "assign")
+// Cast(A = B)
+// Temporary implementation, will be replaced by a set of conversion functions:
+// https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#conversion-instructions
+RIVM_INST(Cast, "cast")
 
 //
 // Memory
@@ -26,14 +30,14 @@ RIVM_INST(AddrOf, "addr-of")
 
 // Arg(Value)
 // Pushes Value to the stack.
-RIVM_INST(Arg, "arg")
-// A = Call(Func B, Imm C)
+RIVM_INST(CallArg, "call-arg")
+// A = Call(Func B, Imm.U64 C)
+// A = Call(Imm.U64 B, Imm.U64 C)
 // Calls function B, sets result to A, pops C arguments pushed with ArgPush.
+// If B is of type `Func` then we're calling into a VM.
+// If B is of type `U64` then we're calling into C to function at given pointer.
 // If A.Type == None, result is ignored.
 RIVM_INST(Call,  "call")
-// A = CallC(CFunc B, Imm C)
-// Same as above, except B is a pointer to a C function we call via system's native calling convention.
-RIVM_INST(CallC, "call-c")
 
 //
 // Control

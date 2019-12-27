@@ -83,6 +83,7 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
                 RI_CHECK(inst.param2.type == RiVmValue_None);
                 break;
 
+            case RiVmOp_Cast:
             case RiVmOp_Assign:
             case RiVmOp_Store:
             case RiVmOp_Load:
@@ -112,13 +113,26 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
                 break;
 
             case RiVmOp_Call:
-                RI_CHECK(inst.param0.kind == RiVmParam_Slot);
-                RI_CHECK(inst.param1.kind == RiVmParam_Func);
-                RI_CHECK(inst.param1.func != 0);
+                RI_CHECK(inst.param0.kind == RiVmParam_Slot || inst.param0.kind == RiVmParam_None);
+                switch (inst.param1.kind)
+                {
+                    case RiVmParam_Func:
+                        RI_CHECK(inst.param1.func != 0);
+                        break;
+                    case RiVmParam_Imm:
+                        RI_CHECK(inst.param1.type == RiVmValue_U64);
+                        break;
+                    case RiVmParam_Slot:
+                        RI_CHECK(inst.param1.type == RiVmValue_U64);
+                        break;
+                    default:
+                        RI_UNREACHABLE;
+                        break;
+                }
                 RI_CHECK(inst.param2.kind == RiVmParam_Imm);
                 break;
 
-            case RiVmOp_Arg:
+            case RiVmOp_CallArg:
                 RI_CHECK(inst.param0.kind != RiVmParam_None);
                 break;
 
@@ -185,7 +199,7 @@ rivm_release_slot_(RiVmCompiler* compiler, RiVmParam param)
             array_push(&compiler->slot_pool, param.slot.index);
         }
     } else {
-        RI_ASSERT(param.kind == RiVmParam_Imm);
+        RI_ASSERT(param.kind == RiVmParam_Imm || param.kind == RiVmParam_None);
     }
 }
 
@@ -238,6 +252,8 @@ rivm_get_type_(RiVmCompiler* compiler, RiNode* ast_spec_type)
             return RiVmValue_I64;
         case RiNode_Spec_Type_Number_UInt64:
             return RiVmValue_U64;
+        case RiNode_Spec_Type_Func:
+            return RiVmValue_U64;
     }
     RI_UNREACHABLE;
     return RiVmValue_None;
@@ -254,17 +270,29 @@ rivm_get_type_from_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
 static RiVmParam
 rivm_get_param_(RiVmCompiler* compiler, RiNode* ast_var)
 {
-    RI_ASSERT(ast_var->kind == RiNode_Value_Var);
-    RiNode* ast_spec = ast_var->value.spec;
-    RiVmValueType type = rivm_get_type_from_expr_(compiler, ast_var);
-    if (ast_spec->spec.var.slot == RI_INVALID_SLOT) {
+    RiNode* spec = 0;
+    switch (ast_var->kind) {
+        case RiNode_Decl:
+            spec = ast_var->decl.spec;
+            break;
+        case RiNode_Value_Var:
+            spec = ast_var->value.spec;
+            break;
+        default:
+            RI_UNREACHABLE;
+            break;
+    }
+    RI_CHECK(spec->kind == RiNode_Spec_Var);
+
+    RiVmValueType type = rivm_get_type_from_expr_(compiler, spec);
+    if (spec->spec.var.slot == RI_INVALID_SLOT) {
         RiVmParam param = rivm_acquire_slot_(
             compiler, RiSlot_Local, type);
-        ast_spec->spec.var.slot = param.slot.index;
+        spec->spec.var.slot = param.slot.index;
         return param;
     }
 
-    return rivm_get_slot_param_(compiler, ast_spec->spec.var.slot);
+    return rivm_get_slot_param_(compiler, spec->spec.var.slot);
 }
 
 static RiVmParam
@@ -318,13 +346,17 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
         switch (ast_expr->kind)
         {
             case RiNode_Expr_Cast: {
-                RiNode* type = ast_expr->call.arguments.items[0];
+                RiNodeArray* arguments = &ast_expr->call.arguments;
+                RiNode* type = arguments->items[0];
                 RiVmParam result = rivm_acquire_slot_(
                     compiler,
                     RiSlot_Temporary,
                     rivm_get_type_(compiler, type)
                 );
-                rivm_code_emit_(&compiler->code, Cast, )
+                RiVmParam expr_result = rivm_compile_expr_(compiler, arguments->items[1]);
+                rivm_code_emit(&compiler->code, Cast, result, expr_result);
+                rivm_release_slot_(compiler, expr_result);
+                return result;
             } break;
 
             case RiNode_Expr_Call: {
@@ -332,45 +364,49 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
                 for (iptr i = 0; i < arguments->count; ++i)
                 {
                     RiVmParam arg = rivm_compile_expr_(compiler, arguments->items[i]);
-                    rivm_code_emit(&compiler->code, Arg, arg);
+                    rivm_code_emit(&compiler->code, CallArg, arg);
                     rivm_release_slot_(compiler, arg);
                 }
 
-                RiNode* spec = ast_expr->call.func->value.spec;
-                RiNode* type = spec->spec.func.type;
-                RI_ASSERT(type->spec.type.func.outputs.count < 2);
+                RiNode* callable = ast_expr->call.func;
+                RiVmParam arg_callable = rivm_compile_expr_(compiler, callable);
+                RiNode* func_type = ri_retof_(compiler->ri, callable);
+                RI_CHECK(func_type->kind == RiNode_Spec_Type_Func);
 
-                // RiVmParam result = {0};
-                // for (iptr i = 0; i < type->spec.type.func.outputs.count; ++i) {
-                //     result = rivm_acquire_slot_(compiler, RiSlot_Temporary, RiVmValue_I32);
-                //     RiVmParam result_addr = rivm_acquire_slot_(compiler, RiSlot_Temporary, RiVmValue_U64);
-                //     rivm_code_emit(&compiler->code, AddrOf, result_addr, result);
-                //     rivm_code_emit(&compiler->code, Arg, result_addr);
-                // }
-
-                RiVmParam result = rivm_acquire_slot_(
-                    compiler,
-                    RiSlot_Temporary,
-                    rivm_get_type_(comiler, type)
-                );
+                RiNodeArray* func_outputs = &func_type->spec.type.func.outputs;
+                RI_CHECK(func_outputs->count < 2);
+                
+                RiVmParam result = { RiVmParam_None };
+                if (func_outputs->count == 1) {
+                    RiNode* output = func_outputs->items[0];
+                    RI_CHECK(output->decl.spec->kind == RiNode_Spec_Var);
+                    result = rivm_acquire_slot_(
+                        compiler,
+                        RiSlot_Temporary,
+                        rivm_get_type_(compiler, output->decl.spec->spec.var.type)
+                    );
+                }
 
                 rivm_code_emit(&compiler->code,
                     Call,
                     result,
-                    rivm_make_param(Func,
-                        .func = spec
-                    ),
+                    arg_callable,
                     rivm_make_param(Imm,
                         .type = RiVmValue_U64,
                         .imm.i64 = arguments->count
                     )
                 );
 
+                rivm_release_slot_(compiler, arg_callable);
+
                 return result;
             }
 
             case RiNode_Value_Var:
                 return rivm_get_param_(compiler, ast_expr);
+
+            case RiNode_Value_Func:
+                return rivm_make_param(Func, .func = ast_expr->value.spec);
 
             case RiNode_Value_Constant: {
                 RiVmValueType type = rivm_get_type_from_expr_(compiler, ast_expr);
@@ -423,6 +459,11 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
             } else {
                 rivm_code_emit(&compiler->code, Ret);
             }
+        } break;
+
+        case RiNode_St_Expr: {
+            RiVmParam result = rivm_compile_expr_(compiler, ast_st->st_expr);
+            rivm_release_slot_(compiler, result);
         } break;
 
         case RiNode_St_Assign: {
@@ -491,7 +532,8 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     // Allocate slots for input and output parameters.
     rivm_acquire_func_args_(compiler, RiSlot_Input, &ast_func_type->spec.type.func.inputs);
     // TODO: Multiple return values.
-    RI_ASSERT(ast_func_type->spec.type.func.outputs.count < 2);
+    iptr outputs_count = ast_func_type->spec.type.func.outputs.count;
+    RI_ASSERT(outputs_count < 2);
     // rivm_acquire_func_args_(compiler, RiSlot_Output, &ast_func_type->spec.type.func.outputs);
 
     uint32_t slot_locals = compiler->slot_next;
@@ -506,9 +548,14 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     );
     ast_func->spec.func.slot = compiler->module->func.count;
 
+    if (outputs_count == 0) {
+        // TODO: Do this only if there's no ret.
+        rivm_code_emit(&compiler->code, Ret);
+    }
+
     RiVmFunc* func = rivm_module_push_func(compiler->module, compiler->code.slice);
     func->debug_inputs_count = ast_func_type->spec.type.func.inputs.count;
-    func->debug_outputs_count = ast_func_type->spec.type.func.outputs.count;
+    func->debug_outputs_count = outputs_count;
     compiler->code = (RiVmInstArray){0};
 
     array_clear(&compiler->slot_pool);
@@ -537,12 +584,14 @@ rivm_patch_(RiVmCompiler* compiler, RiVmModule* module)
             switch (inst->op)
             {
                 case RiVmOp_Call: {
-                    RI_CHECK(inst->param1.kind == RiVmParam_Func);
-                    RiNode* ast_func = inst->param1.func;
-                    RI_CHECK(ast_func);
-                    RI_CHECK(ast_func->spec.func.slot != RI_INVALID_SLOT);
-                    RiVmFunc* func = array_at(&module->func, ast_func->spec.func.slot);
-                    inst->param1.func = func;
+                    if (inst->param1.kind == RiVmParam_Func)
+                    {
+                        RiNode* ast_func = inst->param1.func;
+                        RI_CHECK(ast_func);
+                        RI_CHECK(ast_func->spec.func.slot != RI_INVALID_SLOT);
+                        RiVmFunc* func = array_at(&module->func, ast_func->spec.func.slot);
+                        inst->param1.func = func;
+                    }
                 } break;
 
                 case RiVmOp_If: {

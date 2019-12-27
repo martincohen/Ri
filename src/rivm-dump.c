@@ -116,7 +116,11 @@ rivm_dump_func(RiVmFunc* func, CharArray* out)
                     break;
 
                case RiVmOp_Call:
-                    chararray_push_f(out, "%S = (%s %S %S)", s0, sop, s1, s2);
+                    if (it->param0.kind != RiVmParam_None) {
+                        chararray_push_f(out, "%S = (%s %S %S)", s0, sop, s1, s2);    
+                    } else {
+                        chararray_push_f(out, "%s %S %S", sop, s1, s2);    
+                    }
                     break;
 
                 case RiVmOp_If:

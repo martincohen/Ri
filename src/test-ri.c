@@ -152,6 +152,7 @@ void
 testri_resolve() {
 
     testri_file_("resolve/func", TestRi_Resolve);
+    testri_file_("resolve/call", TestRi_Resolve);
     // testri_file_("resolve/type-func", TestRi_Resolve);
 
 #if 0
