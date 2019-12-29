@@ -1649,15 +1649,15 @@ pool_dealloc(Pool* pool, void* ptr)
 // Files
 //
 
-int
+bool
 file_read(ByteArray* buffer, const char *path, Error* error)
 {
 #ifdef SYSTEM_WINDOWS
-    int ret = 0;
+    bool ret = false;
     HANDLE file = CreateFileA(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) {
         error_set(error, ERROR_ID(File_Open), 0);
-        ret = 0;
+        ret = false;
     } else {
         iptr file_size;
         GetFileSizeEx(file, (PLARGE_INTEGER)&file_size);
@@ -1667,9 +1667,9 @@ file_read(ByteArray* buffer, const char *path, Error* error)
             DWORD read_size;
             if (ReadFile(file, blob, file_size, &read_size, NULL) == FALSE || read_size == 0) {
                 error_set(error, ERROR_ID(File_Read), 0);
-                ret = 0;
+                ret = false;
             } else {
-                ret = 1;
+                ret = true;
             }
         }
         CloseHandle(file);
@@ -1679,7 +1679,7 @@ file_read(ByteArray* buffer, const char *path, Error* error)
     FILE *file = fopen(path, "rb");
     if (!file) {
         error_set(error, ERROR_ID(File_Open), 0);
-        return 0;
+        return false;
     }
     fseek(file, 0, SEEK_END);
     iptr file_size = ftell(file);
@@ -1690,29 +1690,29 @@ file_read(ByteArray* buffer, const char *path, Error* error)
     if (file_size && fread(blob, file_size, 1, file) != 1) {
         error_set(error, ERROR_ID(File_Read), 0);
         fclose(file);
-        return 0;
+        return false;
     }
     fclose(file);
     ((char*)blob)[buffer->count] = '\0';
-    return 1;
+    return true;
 #endif
 }
 
-int
+bool
 file_write(const char *path, const void *blob, iptr size, Error* error)
 {
     // TODO: Fill error.
 #ifdef SYSTEM_WINDOWS
-    int ret = 1;
+    bool ret = true;
     HANDLE file = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (file == INVALID_HANDLE_VALUE) {
         error_set(error, ERROR_ID(File_Open), 0);
-        ret = 0;
+        ret = false;
     } else {
         DWORD write_size;
         if (WriteFile(file, blob, size, &write_size, NULL) == 0 || write_size == 0) {
             error_set(error, ERROR_ID(File_Write), 0);
-            ret = 0;
+            ret = false;
         }
         CloseHandle(file);
     }

@@ -1,40 +1,13 @@
 #pragma once
 
-#include <co-lib.h>
-
-#define RI_CHECK CHECK
-#define RI_ASSERT ASSERT
-#define RI_ABORT FAIL
-#define RI_UNREACHABLE FAIL("unreachable")
-#define RI_LOG LOG
-#define RI_LOG_DEBUG LOG_DEBUG
-
-typedef struct Ri Ri;
-typedef struct RiPos RiPos;
-typedef struct RiError RiError;
-typedef struct RiStream RiStream;
-typedef struct RiToken RiToken;
-typedef union RiLiteral RiLiteral;
-typedef struct RiNode RiNode;
-typedef struct RiNodeMeta RiNodeMeta;
-typedef struct RiScope RiScope;
+#include "ri-common.h"
+#include "ri-ast.h"
 
 typedef enum RiErrorKind RiErrorKind;
-typedef enum RiTokenKind RiTokenKind;
-typedef enum RiNodeKind RiNodeKind;
-typedef enum RiSpecState RiSpecState;
-typedef enum RiTypeCompleteness RiTypeCompleteness;
-typedef enum RiVarKind RiVarKind;
+typedef struct RiError RiError;
 
-#define RI_INVALID_SLOT (-1)
-
-//
-//
-//
-
-struct RiPos {
-    iptr row, col;
-};
+typedef struct RiModule RiModule;
+typedef struct Ri Ri;
 
 //
 //
@@ -43,12 +16,14 @@ struct RiPos {
 // TODO: Separate by phase.
 enum RiErrorKind {
     RiError_None,
+    RiError_ModuleNotFound,
     RiError_UnexpectedCharacter,
     RiError_UnexpectedToken,
     RiError_UnexpectedType,
     RiError_UnexpectedStatement,
     RiError_UnexpectedExpression,
     RiError_UnexpectedValue,
+    RiError_UnterminatedString,
     RiError_Declared,
     RiError_NotDeclared,
     RiError_CyclicDeclaration,
@@ -62,533 +37,64 @@ struct RiError {
     RiErrorKind kind;
     RiPos pos;
     CharArray message;
-};
-
-//
-//
-//
-
-enum RiTokenKind
-{
-    RiToken_Unknown,
-
-    RiToken_End,
-    RiToken_Identifier,
-
-    RiToken_Integer,
-    RiToken_Real,
-    RiToken_String,
-
-    RiToken_Keyword_Func,
-    RiToken_Keyword_Variable,
-    RiToken_Keyword_Const,
-    RiToken_Keyword_Type,
-    RiToken_Keyword_Struct,
-    RiToken_Keyword_Union,
-    RiToken_Keyword_Enum,
-
-    RiToken_Keyword_Return,
-    RiToken_Keyword_If,
-    RiToken_Keyword_Else,
-    RiToken_Keyword_For,
-    RiToken_Keyword_Switch,
-    RiToken_Keyword_Case,
-    RiToken_Keyword_Default,
-    RiToken_Keyword_Break,
-    RiToken_Keyword_Continue,
-    RiToken_Keyword_Fallthrough,
-
-    RiToken_Keyword_True,
-    RiToken_Keyword_False,
-    RiToken_Keyword_Nil,
-
-    RiToken_LP,
-    RiToken_RP,
-    RiToken_LB,
-    RiToken_RB,
-    RiToken_Dot,
-    RiToken_Comma,
-    RiToken_Semicolon,
-    RiToken_Colon,
-
-    RiToken_Plus,
-    RiToken_Minus,
-    RiToken_Star,
-    RiToken_Slash,
-    RiToken_Percent,
-
-    RiToken_PlusPlus,
-    RiToken_MinusMinus,
-
-    RiToken_Assign_FIRST__,
-        RiToken_Eq,
-        RiToken_PlusEq,
-        RiToken_MinusEq,
-        RiToken_StarEq,
-        RiToken_SlashEq,
-        RiToken_PercentEq,
-        RiToken_AmpEq,
-        RiToken_PipeEq,
-        RiToken_BeakEq,
-    RiToken_Assign_LAST__,
-
-    RiToken_Comparison_FIRST__,
-        RiToken_Lt,
-        RiToken_Gt,
-        RiToken_LtEq,
-        RiToken_GtEq,
-        RiToken_EqEq,
-        RiToken_BangEq,
-    RiToken_Comparison_LAST__,
-
-    RiToken_Bitwise_FIRST__,
-        RiToken_Amp,
-        RiToken_Pipe,
-        RiToken_Beak,
-        RiToken_Tilde,
-        RiToken_LtLt,
-        RiToken_GtGt,
-    RiToken_Bitwise_LAST__,
-
-    RiToken_Boolean_FIRST__,
-        RiToken_Bang,
-        RiToken_AmpAmp,
-        RiToken_PipePipe,
-    RiToken_Boolean_LAST__,
-
-    RiToken_COUNT__
-};
-
-#define ri_tokenkind_in(TokenKind, Prefix) \
-    ((TokenKind) > Prefix ## _FIRST__ && (TokenKind) < Prefix ## _LAST__)
-
-
-struct RiStream {
-    iptr line_index;
-    char* line;
-    char* start;
-    char* end;
-    char* it;
-};
-
-struct RiToken {
-    RiTokenKind kind;
-    RiPos pos;
-    char* start;
-    char* end;
-    union {
-        String id;
-        uint64_t integer;
-        double real;
-    };
-};
-
-//
-//
-//
-
-typedef Slice(RiNode*) RiNodeSlice;
-typedef ArrayWithSlice(RiNodeSlice) RiNodeArray;
-
-//
-//
-//
-
-enum RiSpecState {
-    RiSpec_Unresolved,
-    RiSpec_Resolving,
-    RiSpec_Resolved,
-};
-
-//
-//
-//
-
-enum RiTypeCompleteness {
-    RiType_Incomplete,
-    RiType_Completing,
-    RiType_Completed,
-};
-
-//
-//
-//
-
-// TODO: Collapse FIRST and LAST values.
-
-enum RiNodeKind
-{
-    RiNode_Unknown,
-
-    RiNode_Module,
-    RiNode_Scope_FIRST__,
-        RiNode_Scope_Root,
-        RiNode_Scope_Module,
-        RiNode_Scope_Function_Root,
-        RiNode_Scope_Function_Body,
-        RiNode_Scope_If_Root,
-        RiNode_Scope_If_Body,
-        RiNode_Scope_Switch_Root,
-        RiNode_Scope_Switch_Body,
-        RiNode_Scope_For_Root,
-        RiNode_Scope_For_Body,
-        RiNode_Scope_Nested,
-        RiNode_Scope_Statement,
-    RiNode_Scope_LAST__,
-    RiNode_Id,
-    RiNode_Decl,
-
-    RiNode_Spec_FIRST__,
-        RiNode_Spec_Var,
-        RiNode_Spec_Constant,
-        RiNode_Spec_Func,
-        RiNode_Spec_Type_FIRST__,
-            // Used to denote a node that returns void (like statements).
-            RiNode_Spec_Type_None,
-            // Used with `var a = 1` to set a's type to Infer.
-            RiNode_Spec_Type_Infer,
-            RiNode_Spec_Type_Func,
-            RiNode_Spec_Type_Struct,
-            RiNode_Spec_Type_Union,
-            RiNode_Spec_Type_Pointer,
-            RiNode_Spec_Type_Number_FIRST__,
-                RiNode_Spec_Type_Number_None_FIRST__,
-                    RiNode_Spec_Type_Number_None_Int,
-                    RiNode_Spec_Type_Number_None_Real,
-                RiNode_Spec_Type_Number_None_LAST__,
-                RiNode_Spec_Type_Number_Bool,
-                RiNode_Spec_Type_Number_Int_FIRST__,
-                    RiNode_Spec_Type_Number_Int_Signed_FIRST__,
-                        RiNode_Spec_Type_Number_Int64,
-                        RiNode_Spec_Type_Number_Int32,
-                        RiNode_Spec_Type_Number_Int16,
-                        RiNode_Spec_Type_Number_Int8,
-                    RiNode_Spec_Type_Number_Int_Signed_LAST__,
-
-                    RiNode_Spec_Type_Number_Int_Unsigned_FIRST__,
-                        RiNode_Spec_Type_Number_UInt64,
-                        RiNode_Spec_Type_Number_UInt32,
-                        RiNode_Spec_Type_Number_UInt16,
-                        RiNode_Spec_Type_Number_UInt8,
-                    RiNode_Spec_Type_Number_Int_Unsigned_LAST__,
-                RiNode_Spec_Type_Number_Int_LAST__,
-
-                RiNode_Spec_Type_Number_Float_FIRST__,
-                    RiNode_Spec_Type_Number_Float64,
-                    RiNode_Spec_Type_Number_Float32,
-                RiNode_Spec_Type_Number_Float_LAST__,
-
-                RiNode_Spec_Type_Number_Enum,
-            RiNode_Spec_Type_Number_LAST__,
-        RiNode_Spec_Type_LAST__,
-    RiNode_Spec_LAST__,
-
-    RiNode_Value_FIRST__,
-        RiNode_Value_Var,
-        RiNode_Value_Func,
-        RiNode_Value_Type,
-        RiNode_Value_Constant,
-    RiNode_Value_LAST__,
-
-    RiNode_Expr_FIRST__,
-        RiNode_Expr_Call,
-        RiNode_Expr_Cast,
-        RiNode_Expr_AddrOf,
-
-        RiNode_Expr_Unary_FIRST__,
-            // Arithmetic
-            RiNode_Expr_Unary_Positive,
-            RiNode_Expr_Unary_Negative,
-            RiNode_Expr_Unary_IncPost,
-            RiNode_Expr_Unary_DecPost,
-            RiNode_Expr_Unary_IncPre,
-            RiNode_Expr_Unary_DecPre,
-            // Bitwise
-            RiNode_Expr_Unary_BNeg,
-            // Boolean
-            RiNode_Expr_Unary_Not,
-        RiNode_Expr_Unary_LAST__,
-
-        RiNode_Expr_Binary_FIRST__,
-            // Syntax
-            RiNode_Expr_Binary_Select,
-
-            RiNode_Expr_Binary_Numeric_FIRST__,
-                // Arithmetic
-                RiNode_Expr_Binary_Numeric_Arithmetic_FIRST__,
-                    RiNode_Expr_Binary_Numeric_Arithmetic_Add,
-                    RiNode_Expr_Binary_Numeric_Arithmetic_Sub,
-                    RiNode_Expr_Binary_Numeric_Arithmetic_Mul,
-                    RiNode_Expr_Binary_Numeric_Arithmetic_Div,
-                    RiNode_Expr_Binary_Numeric_Arithmetic_Mod,
-                RiNode_Expr_Binary_Numeric_Arithmetic_LAST__,
-                // Bitwise
-                RiNode_Expr_Binary_Numeric_Bitwise_FIRST__,
-                    RiNode_Expr_Binary_Numeric_Bitwise_BXor,
-                    RiNode_Expr_Binary_Numeric_Bitwise_BAnd,
-                    RiNode_Expr_Binary_Numeric_Bitwise_BOr,
-                    RiNode_Expr_Binary_Numeric_Bitwise_BShL,
-                    RiNode_Expr_Binary_Numeric_Bitwise_BShR,
-                RiNode_Expr_Binary_Numeric_Bitwise_LAST__,
-                // Boolean
-                RiNode_Expr_Binary_Numeric_Boolean_FIRST__,
-                    RiNode_Expr_Binary_Numeric_Boolean_And,
-                    RiNode_Expr_Binary_Numeric_Boolean_Or,
-                RiNode_Expr_Binary_Numeric_Boolean_LAST__,
-            RiNode_Expr_Binary_Numeric_LAST__,
-
-            RiNode_Expr_Binary_Comparison_FIRST__,
-                RiNode_Expr_Binary_Comparison_Lt,
-                RiNode_Expr_Binary_Comparison_Gt,
-                RiNode_Expr_Binary_Comparison_LtEq,
-                RiNode_Expr_Binary_Comparison_GtEq,
-                RiNode_Expr_Binary_Comparison_Eq,
-                RiNode_Expr_Binary_Comparison_NotEq,
-            RiNode_Expr_Binary_Comparison_LAST__,
-        RiNode_Expr_Binary_LAST__,
-    RiNode_Expr_LAST__,
-
-    RiNode_St_Assign_FIRST__,
-        RiNode_St_Assign,
-        RiNode_St_Assign_Add,
-        RiNode_St_Assign_Sub,
-        RiNode_St_Assign_Mul,
-        RiNode_St_Assign_Div,
-        RiNode_St_Assign_Mod,
-        RiNode_St_Assign_And,
-        RiNode_St_Assign_Or,
-        RiNode_St_Assign_Xor,
-    RiNode_St_Assign_LAST__,
-
-    RiNode_St_Expr,
-    RiNode_St_Return,
-    RiNode_St_If,
-    RiNode_St_For,
-    RiNode_St_Break,
-    RiNode_St_Continue,
-    RiNode_St_Switch,
-    RiNode_St_Switch_Case,
-    RiNode_St_Switch_Default,
-    RiNode_St_Switch_Fallthrough,
-
-    RiNode_COUNT__
-};
-
-static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
-    return (kind > first) && (kind < last);
-}
-
-#define ri_is_in(NodeKind, Prefix) \
-    ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
-
-#define ri_is_expr_like(NodeKind) \
-    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Constant))
-
-//
-//
-//
-
-enum RiVarKind {
-    RiVar_Local,
-    RiVar_Input,
-    RiVar_Output,
-};
-
-//
-//
-//
-
-union RiLiteral {
-    uint64_t integer;
-    double real;
-    String string;
-    bool boolean;
-    void* pointer;
-};
-
-//
-//
-//
-
-struct RiNode
-{
-    RiNodeKind kind;
-    // Scope that owns this node.
-    // We can get rid of this pointer but we'll have to maintain a scope stack for every walk.
-    RiNode* owner;
-    // TODO: Only used for debug.
-    int index;
-    RiPos pos;
-    union {
-        struct {
-            String name;
-        } id;
-
-        struct {
-            RiNode* scope;
-        } module;
-
-        struct {
-            Map map;
-            // TODO: Doesn't seem to be essential.
-            RiNodeArray decl;
-            RiNodeArray statements;
-        } scope;
-
-        struct {
-            RiNode* spec;
-        } decl;
-
-        struct {
-            String id;
-            RiSpecState state;
-            union {
-                struct {
-                    RiNode* type;
-                    RiNode* scope;
-                    // Used by compiler.
-                    // RI_INVALID_SLOT by default.
-                    uint32_t slot;
-                } func;
-
-                struct {
-                    RiNode* type;
-                    RiVarKind kind;
-                    // Used by compiler.
-                    // RI_INVALID_SLOT by default.
-                    uint32_t slot;
-                } var;
-
-                struct {
-                    RiNode* type;
-                    RiLiteral value;
-                } constant;
-
-                struct {
-                    RiTypeCompleteness completeness;
-                    // NOTE: This is set to another type declared earlier that is the same as this one.
-                    // It is used for comparing whether two types are identical.
-                    // We cannot just merge entire node to the base one, since that would make the
-                    // AST useless for other applications (like editor).
-                    RiNode* identity;
-                    struct {
-                        RiNodeArray inputs;
-                        RiNodeArray outputs;
-                    } func;
-                    struct {
-                        RiNodeArray fields;
-                        iptr size;
-                    } compound;
-                    struct {
-                        RiNode* base;
-                    } pointer;
-                } type;
-            };
-        } spec;
-
-        // Statement/Expression operators.
-
-        struct {
-            // NOTE: Data used by all RiNode_Expr_Binary_* types.
-            // NOTE: Data used by all RiNode_St_Assign_* types.
-            RiNode* argument0;
-            RiNode* argument1;
-        } binary;
-        struct {
-            // NOTE: Data used by all RiNode_Expr_Unary_* types.
-            RiNode* argument;
-        } unary;
-
-        // Expressions
-
-        struct {
-            RiNode* func;
-            RiNodeArray arguments;
-        } call;
-
-        // A constant or reference to a spec used in expressions (var, func, type,...)
-        struct {
-            RiNode* spec;
-            // TODO: Split this up, or implement all constants as specs?
-            struct {
-                RiNode* type;
-                // Used for inline constants, otherwise spec is not NULL.
-                // All literals are resolved to their final type in resolve phase.
-                // For untyped constants, spec == NULL and type == NULL.
-                RiLiteral literal;
-            } constant;
-        } value;
-
-
-        // Statements
-
-        struct {
-            // NOTE: Can be NULL.
-            RiNode* argument;
-        } st_return;
-
-        struct {
-            // NOTE: Can be NULL.
-            RiNode* pre;
-            // NOTE: Can be NULL.
-            RiNode* condition;
-            // NOTE: Has one or two statements referencing scopes.
-            // One for `if` block.
-            // One for `else` scope or `if`.
-            RiNode* scope;
-        } st_if;
-
-        struct {
-            // NOTE: Can be NULL.
-            RiNode* pre;
-            // NOTE: Can be NULL.
-            RiNode* condition;
-            // NOTE: Can be NULL.
-            RiNode* post;
-            // NOTE: Always present.
-            RiNode* scope;
-        } st_for;
-
-        struct {
-            // NOTE: Can be NULL.
-            RiNode* pre;
-            // NOTE: Always present.
-            RiNode* expr;
-            // NOTE: Always present.
-            RiNode* scope;
-        } st_switch;
-
-        struct {
-            RiNode* expr;
-        } st_switch_case;
-
-        RiNode* st_expr;
-    };
-};
-
-//
-//
-//
-
-struct RiNodeMeta {
-    RiNode* node;
-};
-
-struct Ri {
-    Arena arena;
-    Intern intern;
-
     CharArray path;
-    RiError error;
-    RiStream stream;
-    RiToken token;
-    RiNode* scope;
-    RiNode* module;
+};
+
+//
+//
+//
+
+struct RiModule
+{
+    // Name of the module.
+    String id;
+    // Path from which we're loading the module.
+    String path;
+    // Storage for all module's data.
+    Arena arena;
+    // Root node of the module.
+    RiNode* node;
+
+    // State:
+
+    // Current func. Used during resolving.
     RiNode* func;
+    // Array for functions to resolve next.
     RiNodeArray pending;
+};
+
+typedef Slice(RiModule*) RiModuleSlice;
+typedef ArrayWithSlice(RiModuleSlice) RiModuleArray;
+
+//
+//
+//
+
+struct Ri
+{
+    // Paths for loading modules.
+    Array(String) paths;
+
+    // Storage for globals
+    Arena arena_;
+    // Storage for all ids.
+    Intern intern;
+    // Tracks all types.
     RiNodeArray types;
 
-    int index;
+    // Error that caused the load to fail.
+    RiError error;
+    // Root scope.
+    RiNode* scope;
+    // Currently loaded module.
+    RiModule* module;
+
+    // Maps id to RiModule*.
+    Map modules_map;
+    // Tracks all modules.
+    RiModuleArray modules;
+
+    bool debug_tokens;
 
     const char* id_func;
     const char* id_var;
@@ -597,6 +103,8 @@ struct Ri {
     const char* id_struct;
     const char* id_union;
     const char* id_enum;
+
+    const char* id_import;
 
     const char* id_return;
     const char* id_if;
@@ -613,20 +121,39 @@ struct Ri {
     const char* id_false;
     const char* id_nil;
 
-    const char* id_underscore; // _
+    const char* id_underscore;
 
-    RiNodeMeta node_meta[RiNode_COUNT__];
-
-    bool debug_tokens;
+    RiNode* nodes[RiNode_COUNT__];
 };
 
 //
 //
 //
 
+bool ri_scope_set_(Ri* ri, RiNode* scope, RiNode* decl);
+String ri_make_id_r_(Ri* ri, char* start, char* end);
+String ri_make_id_(Ri* ri, String string);
+void ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...);
+void ri_error_format_(Ri* ri, CharArray* buffer);
+
+//
+//
+//
 
 void ri_init(Ri* ri, void* host);
 void ri_purge(Ri* ri);
-RiNode* ri_parse(Ri* ri, String stream, String path);
-RiNode* ri_resolve(Ri* ri, RiNode* node);
-RiNode* ri_build(Ri* ri, String stream, String path);
+
+// Loads a file into buffer, stores path where it has been found to `path`.
+bool ri_load(Ri* ri, String name, CharArray* path, ByteArray* stream);
+// Allocates and initializes a module.
+RiModule* ri_module(Ri* ri, String path, String id);
+// Parses the module AST from `stream` passed.
+bool ri_parse(Ri* ri, RiModule* module, ByteSlice stream);
+// Resolves module.
+bool ri_resolve(Ri* ri, RiModule* module);
+
+// Loads, initializes, parses and resolves the module.
+RiModule* ri_import(Ri* ri, String id);
+
+// If error has happened it'll print the error out.
+void ri_error_log(Ri* ri);

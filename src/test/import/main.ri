@@ -1,0 +1,3 @@
+import "lib";
+var a = lib.variable;
+var b = lib.function();

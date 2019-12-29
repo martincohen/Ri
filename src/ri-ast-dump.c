@@ -1,7 +1,8 @@
-#include "ri-dump.h"
+#include "ri-ast-dump.h"
+
+#include "ri-print.c"
 
 typedef struct RiDump_ {
-    Ri* ri;
     RiPrinter printer;
     Map logged;
 } RiDump_;
@@ -113,7 +114,7 @@ ri_dump_(RiDump_* D, RiNode* node)
     } else if (ri_is_in(node->kind, RiNode_Spec_Type_Number)) {
         riprinter_print(&D->printer, "(spec-type-number '%S')\n", node->spec.id);
     } else if (ri_is_in(node->kind, RiNode_Scope)) {
-        riprinter_print(&D->printer, "(scope %d\n\t", node->index);
+        riprinter_print(&D->printer, "(scope\n\t");
         if (node->scope.decl.count) {
             array_each(&node->scope.decl, &it) {
                 ri_dump_(D, it);
@@ -292,6 +293,14 @@ ri_dump_(RiDump_* D, RiNode* node)
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
+            case RiNode_Spec_Type_Infer: {
+                riprinter_print(&D->printer, "(spec-type-infer)\n");
+            } break;
+
+            case RiNode_Spec_Module: {
+                riprinter_print(&D->printer, "(spec-module '%S')\n", node->spec.id);
+            } break;
+
             default: {
                 riprinter_print(&D->printer, "(UNKNOWN)\n");
             } break;
@@ -300,7 +309,7 @@ ri_dump_(RiDump_* D, RiNode* node)
 }
 
 void
-ri_dump(Ri* ri, RiNode* node, CharArray* buffer)
+ri_dump(RiNode* node, CharArray* buffer)
 {
     RI_CHECK(node);
     RI_CHECK(buffer);
@@ -313,10 +322,10 @@ ri_dump(Ri* ri, RiNode* node, CharArray* buffer)
 }
 
 void
-ri_log(Ri* ri, RiNode* node)
+ri_log(RiNode* node)
 {
     CharArray buffer = {0};
-    ri_dump(ri, node, &buffer);
+    ri_dump(node, &buffer);
     RI_LOG("%S", buffer.slice);
     array_purge(&buffer);
 }

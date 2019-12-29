@@ -1,3 +1,4 @@
+#if 0
 static inline String
 testri_token_to_string(RiToken* token) {
     return S(token->start, token->end - token->start);
@@ -54,15 +55,18 @@ testri_parse() {
     Ri ri;
     ri_init(&ri, 0);
 
-    RiNode* node = ri_parse(&ri, S(
+    RiError error = {0};
+    RiNode* node = ri_parse(S(
         "func main(var a int32);"
         "main;"
-    ), S("testri_parse.ri"));
+    ), &ri.arena_, &ri.intern, &ri.global, error);
     ri_log(&ri, node);
 
     ri_purge(&ri);
 }
+#endif
 
+#if 0
 typedef enum TestRiMode {
     TestRi_Parse,
     TestRi_Resolve
@@ -75,11 +79,12 @@ testri_file_(const char* name, TestRiMode mode)
 
     Ri ri;
     ri_init(&ri, 0);
+    array_push(&ri.paths, String("./src/test"));
 
     RiNode* node = NULL;
     {
         CharArray path_source = {0};
-        chararray_push_f(&path_source, "./src/test/ast/%s.ri", name);
+        chararray_push_f(&path_source, "./src/test/%s.ri", name);
         array_zero_term(&path_source);
             ByteArray source = {0};
             ASSERT(file_read(&source, path_source.items, 0));
@@ -91,7 +96,7 @@ testri_file_(const char* name, TestRiMode mode)
     ByteArray expected = {0};
     {
         CharArray path_expected = {0};
-        chararray_push_f(&path_expected, "./src/test/ast/%s.expected.lisp", name);
+        chararray_push_f(&path_expected, "./src/test/%s.expected.lisp", name);
         array_zero_term(&path_expected);
         if (!file_read(&expected, path_expected.items, 0)) {
             LOG("'%s': expected file not found", name);
@@ -136,7 +141,7 @@ testri_file_(const char* name, TestRiMode mode)
         }
 
         CharArray path_recent = {0};
-        chararray_push_f(&path_recent, "./src/test/ast/%s.recent.lisp", name);
+        chararray_push_f(&path_recent, "./src/test/%s.recent.lisp", name);
         array_zero_term(&path_recent);
         ASSERT(file_write(path_recent.items, actual.items, actual.count, 0));
         array_purge(&path_recent);
@@ -147,48 +152,79 @@ testri_file_(const char* name, TestRiMode mode)
     array_purge(&expected);
     ri_purge(&ri);
 }
+#endif
 
 void
-testri_resolve() {
+testri_load_(String id)
+{
+    Ri ri;
+    ri_init(&ri, 0);
+    array_push(&ri.paths, S("./src/test"));
 
-    testri_file_("resolve/func", TestRi_Resolve);
-    testri_file_("resolve/call", TestRi_Resolve);
+    CharArray path = {0};
+    ByteArray stream = {0};
+
+    RI_ASSERT(ri_load(&ri, id, &path, &stream));
+
+    RiModule* module = ri_module(&ri, path.slice, id);
+
+    RI_ASSERT(ri_parse(&ri, module, stream.slice));
+    ri_log(module->node);
+
+    // RI_ASSERT(ri_resolve(&ri, module, stream.slice));
+
+    ri_error_log(&ri);
+
+    ri_purge(&ri);
+}
+
+void
+testri_resolve()
+{
+    testri_load_(S("import/main"));
+
+    // testri_file_("string-not-terminated.error", TestRi_Parse);
+    // testri_file_("string", TestRi_Parse);
+    // testri_file_("import/main", TestRi_Resolve);
     // testri_file_("resolve/type-func", TestRi_Resolve);
 
 #if 0
-    testri_file_("parse/switch", TestRi_Parse);
-    testri_file_("parse/const-real", TestRi_Parse);
-    testri_file_("parse/func-no-input-arguments", TestRi_Parse);
+    testri_file_("ast/parse/switch", TestRi_Parse);
+    testri_file_("ast/parse/const-real", TestRi_Parse);
+    testri_file_("ast/parse/func-no-input-arguments", TestRi_Parse);
 
-    // TODO: testri_file_("test1");
+    // TODO: testri_file_("ast/test1");
 
-    testri_file_("resolve/decl", TestRi_Resolve);
-    testri_file_("resolve/if", TestRi_Resolve);
-    testri_file_("resolve/if-condition-error-bool", TestRi_Resolve);
-    testri_file_("resolve/for", TestRi_Resolve);
-    testri_file_("resolve/for-condition-error-is-st", TestRi_Resolve);
+    testri_file_("ast/resolve/decl", TestRi_Resolve);
+    testri_file_("ast/resolve/if", TestRi_Resolve);
+    testri_file_("ast/resolve/if-condition-error-bool", TestRi_Resolve);
+    testri_file_("ast/resolve/for", TestRi_Resolve);
+    testri_file_("ast/resolve/for-condition-error-is-st", TestRi_Resolve);
 
-    testri_file_("resolve/assignment-infer-error", TestRi_Resolve);
-    testri_file_("resolve/assignment", TestRi_Resolve);
+    testri_file_("ast/resolve/assignment-infer-error", TestRi_Resolve);
+    testri_file_("ast/resolve/assignment", TestRi_Resolve);
 
 
-    testri_file_("resolve/type-spec", TestRi_Resolve);
-    testri_file_("resolve/type-inference-const", TestRi_Resolve);
-    testri_file_("resolve/type-inference-const-binary-left-error", TestRi_Resolve);
-    testri_file_("resolve/type-inference-const-binary-right-error", TestRi_Resolve);
+    testri_file_("ast/resolve/type-spec", TestRi_Resolve);
+    testri_file_("ast/resolve/type-inference-const", TestRi_Resolve);
+    testri_file_("ast/resolve/type-inference-const-binary-left-error", TestRi_Resolve);
+    testri_file_("ast/resolve/type-inference-const-binary-right-error", TestRi_Resolve);
 
-    testri_file_("resolve/op-arithmetic", TestRi_Resolve);
-    testri_file_("resolve/op-arithmetic-type-mismatch-error", TestRi_Resolve);
-    testri_file_("resolve/op-binary", TestRi_Resolve);
-    testri_file_("resolve/op-bitwise", TestRi_Resolve);
-    testri_file_("resolve/op-boolean", TestRi_Resolve);
-    testri_file_("resolve/op-comparison", TestRi_Resolve);
+    testri_file_("ast/resolve/op-arithmetic", TestRi_Resolve);
+    testri_file_("ast/resolve/op-arithmetic-type-mismatch-error", TestRi_Resolve);
+    testri_file_("ast/resolve/op-binary", TestRi_Resolve);
+    testri_file_("ast/resolve/op-bitwise", TestRi_Resolve);
+    testri_file_("ast/resolve/op-boolean", TestRi_Resolve);
+    testri_file_("ast/resolve/op-comparison", TestRi_Resolve);
 
-    testri_file_("resolve/cast-bool", TestRi_Resolve);
-    testri_file_("resolve/cast-int-to-bool-error", TestRi_Resolve);
-    testri_file_("resolve/cast-float-to-bool-error", TestRi_Resolve);
-    testri_file_("resolve/cast-arguments-count-error", TestRi_Resolve);
-    // TODO: testri_file_("resolve/cast-pointer-mul-conflict", TestRi_Resolve);
+    testri_file_("ast/resolve/cast-bool", TestRi_Resolve);
+    testri_file_("ast/resolve/cast-int-to-bool-error", TestRi_Resolve);
+    testri_file_("ast/resolve/cast-float-to-bool-error", TestRi_Resolve);
+    testri_file_("ast/resolve/cast-arguments-count-error", TestRi_Resolve);
+    // TODO: testri_file_("ast/resolve/cast-pointer-mul-conflict", TestRi_Resolve);
+
+    // testri_file_("ast/resolve/func", TestRi_Resolve);
+    // testri_file_("ast/resolve/call", TestRi_Resolve);
 #endif
 }
 

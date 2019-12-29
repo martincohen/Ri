@@ -62,6 +62,11 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
 ### AST
 
 - [x] Ignore named return values (we'll do multiple return values and named return values later).
+- [ ] C qualifiers:
+    - https://www.oracle.com/technetwork/server-storage/solaris10/cc-restrict-139391.html
+    - [ ] `const` qualifier
+    - [ ] `volatile` qualifier
+    - [ ] `restrict` qualifier
 - [ ] Ri calling convention passing a pointer to current `context` as first argument.
     - This will be simply determined by the signature of the function we're calling, if the signature has `*RiContext` as first argument, we'll inject it as one, otherwise we'll just call using platform's native calling convention.
 - [ ] Rework `constant` node as it's messy now. Probably also add support for initializers.

@@ -1577,8 +1577,8 @@ rgba8_with_alpha_f(RGBA8 rgba8, float a) {
 
 // TODO: Doesn't return correct error message when the file is not found.
 // TODO: Make it use 'String'.
-int file_read(ByteArray* buffer, const char *path, Error* error);
-int file_write(const char *path, const void *blob, iptr size, Error* error);
+bool file_read(ByteArray* buffer, const char *path, Error* error);
+bool file_write(const char *path, const void *blob, iptr size, Error* error);
 
 //
 // Resources

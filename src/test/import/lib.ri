@@ -1,0 +1,4 @@
+var variable = 1;
+func function() int32 {
+	return 2;
+}

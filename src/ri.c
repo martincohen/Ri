@@ -1,59 +1,8 @@
-#define __STDC_FORMAT_MACROS
-#include <inttypes.h>
-
 #include "ri.h"
-#include "ri-print.c"
 
-#define RI_TODO FAIL("todo")
-#define RI_POS_OUTSIDE (RiPos){ -1, -1 }
-#define RI_ID_NULL (String){ NULL, 0 }
-
-static const struct {
-    RiNodeKind unary;
-    RiNodeKind binary;
-    RiNodeKind assign;
-} RI_TOKEN_TO_OP_[RiToken_COUNT__] = {
-    [RiToken_Dot]           = { .binary = RiNode_Expr_Binary_Select },
-    [RiToken_Plus]          = { .unary = RiNode_Expr_Unary_Positive,
-                                .binary = RiNode_Expr_Binary_Numeric_Arithmetic_Add },
-    [RiToken_Minus]         = { .unary = RiNode_Expr_Unary_Negative,
-                                .binary = RiNode_Expr_Binary_Numeric_Arithmetic_Sub },
-    [RiToken_Star]          = { .binary = RiNode_Expr_Binary_Numeric_Arithmetic_Mul },
-    [RiToken_Slash]         = { .binary = RiNode_Expr_Binary_Numeric_Arithmetic_Div },
-    [RiToken_Percent]       = { .binary = RiNode_Expr_Binary_Numeric_Arithmetic_Mod },
-
-    // [RiToken_PlusPlus]      = { .unary = RiNode_Expr_Unary_Inc },
-    // [RiToken_MinusMinus]    = { .unary = RiNode_Expr_Unary_Dec },
-
-    [RiToken_Eq]            = { .assign = RiNode_St_Assign },
-    [RiToken_PlusEq]        = { .assign = RiNode_St_Assign_Add },
-    [RiToken_MinusEq]       = { .assign = RiNode_St_Assign_Sub },
-    [RiToken_StarEq]        = { .assign = RiNode_St_Assign_Mul },
-    [RiToken_SlashEq]       = { .assign = RiNode_St_Assign_Div },
-    [RiToken_PercentEq]     = { .assign = RiNode_St_Assign_Mod },
-    [RiToken_AmpEq]         = { .assign = RiNode_St_Assign_And },
-    [RiToken_PipeEq]        = { .assign = RiNode_St_Assign_Or },
-    [RiToken_BeakEq]        = { .assign = RiNode_St_Assign_Xor },
-
-    [RiToken_Lt]            = { .binary = RiNode_Expr_Binary_Comparison_Lt },
-    [RiToken_Gt]            = { .binary = RiNode_Expr_Binary_Comparison_Gt },
-    [RiToken_LtEq]          = { .binary = RiNode_Expr_Binary_Comparison_LtEq },
-    [RiToken_GtEq]          = { .binary = RiNode_Expr_Binary_Comparison_GtEq },
-    [RiToken_EqEq]          = { .binary = RiNode_Expr_Binary_Comparison_Eq },
-    [RiToken_BangEq]        = { .binary = RiNode_Expr_Binary_Comparison_NotEq },
-
-    [RiToken_Amp]           = { .unary = RiNode_Expr_AddrOf,
-                                .binary = RiNode_Expr_Binary_Numeric_Bitwise_BAnd },
-    [RiToken_Pipe]          = { .binary = RiNode_Expr_Binary_Numeric_Bitwise_BOr },
-    [RiToken_Beak]          = { .binary = RiNode_Expr_Binary_Numeric_Bitwise_BXor },
-    [RiToken_Tilde]         = { .unary = RiNode_Expr_Unary_BNeg },
-    [RiToken_LtLt]          = { .binary = RiNode_Expr_Binary_Numeric_Bitwise_BShL },
-    [RiToken_GtGt]          = { .binary = RiNode_Expr_Binary_Numeric_Bitwise_BShR },
-
-    [RiToken_Bang]          = { .unary = RiNode_Expr_Unary_Not },
-    [RiToken_AmpAmp]        = { .binary = RiNode_Expr_Binary_Numeric_Boolean_And },
-    [RiToken_PipePipe]      = { .binary = RiNode_Expr_Binary_Numeric_Boolean_Or },
-};
+#include "ri-common.c"
+#include "ri-ast.c"
+#include "ri-parse.c"
 
 const char* RI_OP_NAMES_[] = {
     [RiNode_Expr_Unary_Positive] = "+",
@@ -85,17 +34,7 @@ const char* RI_OP_NAMES_[] = {
 //
 //
 
-inline String ri_make_id_0(Ri* ri, char* start, char* end);
-inline String ri_make_id_(Ri* ri, String string);
-
-//
-//
-//
-
-#define ri_error_check_(Ri) \
-    RI_CHECK((Ri)->error.kind == RiError_None)
-
-static inline void
+void
 ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
 {
     RI_CHECK(ri->error.kind == RiError_None);
@@ -108,22 +47,35 @@ ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
     chararray_push_fv(&ri->error.message, format, args);
     va_end(args);
 
-    // TODO: Use current file's name/path.
-    RI_LOG("error %S:%d:%d: %S", ri->path.slice, pos.row + 1, pos.col + 1, ri->error.message.slice);
-    // __debugbreak();
+    chararray_push_f(&ri->error.path, "%S/%S.ri", ri->module->path, ri->module->id);
 }
 
-static inline void
-ri_error_set_unexpected_token_(Ri* ri, RiToken* token)
+void
+ri_error_format_(Ri* ri, CharArray* buffer)
 {
-    ri_error_set_(ri, RiError_UnexpectedToken, token->pos, "unexpected token '%.*s' (%d)",
-        token->end - token->start,
-        token->start,
-        token->kind
+    chararray_push_f(
+        buffer,
+        "error %S:%d:%d: %S",
+        ri->error.path.slice,
+        ri->error.pos.row + 1,
+        ri->error.pos.col + 1,
+        ri->error.message.slice
     );
 }
 
-static inline void
+void
+ri_error_log(Ri* ri)
+{
+    if (ri->error.kind != RiError_None)
+    {
+        CharArray message = {0};
+        ri_error_format_(&ri, &message);
+        RI_LOG("%S", message.slice);
+        array_purge(&message);
+    }
+}
+
+void
 ri_error_set_mismatched_types_(Ri* ri, RiPos pos, RiNode* type0, RiNode* type1, const char* op)
 {
     RI_CHECK(ri_is_in(type0->kind, RiNode_Spec_Type));
@@ -136,10 +88,10 @@ ri_error_set_mismatched_types_(Ri* ri, RiPos pos, RiNode* type0, RiNode* type1, 
     // TODO: Get proper names.
     // TODO: Merge same types.
     ri_error_set_(ri, RiError_Type, pos, "mismatched types %S %s %S",
-        // ri->node_meta[type0->kind].node->spec.id,
+        // ri->nodes[type0->kind]->spec.id,
         type0->spec.id,
         op,
-        // ri->node_meta[type1->kind].node->spec.id
+        // ri->nodes[type1->kind]->spec.id
         type1->spec.id
     );
 }
@@ -148,8 +100,9 @@ ri_error_set_mismatched_types_(Ri* ri, RiPos pos, RiNode* type0, RiNode* type1, 
 //
 //
 
-static inline String
-ri_make_id_r_(Ri* ri, char* start, char* end) {
+String
+ri_make_id_r_(Ri* ri, char* start, char* end)
+{
     RI_CHECK(start);
     RI_CHECK(end);
     RI_CHECK(start <= end);
@@ -159,7 +112,7 @@ ri_make_id_r_(Ri* ri, char* start, char* end) {
     };
 }
 
-static inline String
+String
 ri_make_id_(Ri* ri, String string) {
     RI_CHECK(string.items);
     RI_CHECK(string.count >= 0);
@@ -173,432 +126,24 @@ ri_make_id_(Ri* ri, String string) {
 //
 //
 
-static inline bool
-ri_rune_is_id_(char c) {
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_');
-}
-
-static inline bool
-ri_rune_is_number_(char c) {
-    return (c >= '0' && c <= '9');
-}
-
-static inline RiTokenKind
-ri_lex_one_or_two_(Ri* ri, char** it, char* end, enum RiTokenKind op0, char ch, enum RiTokenKind op1)
+// TODO: Only take 'decl` and register it to the owner?
+bool
+ri_scope_set_(Ri* ri, RiNode* scope, RiNode* decl)
 {
-    ++*it;
-    if (*it < end && **it == ch) {
-        ++*it;
-        return op1;
-    } else {
-        return op0;
-    }
-}
-
-static inline bool
-ri_lex_real_decimal_(char** it_, char* end)
-{
-    char* it = *it_;
-    if (it < end && ri_rune_is_number_(*it)) {
-        ++it;
-        while (it < end && ri_rune_is_number_(*it)) ++it;
-        *it_ = it;
-        return true;
-    }
-    return false;
-}
-
-static inline bool
-ri_lex_real_exponent_(char** it_, char* end)
-{
-    return false;
-}
-
-// NOTE: Expects the stream to end with 0.
-static inline RiTokenKind
-ri_lex_number_(Ri* ri, char** it_, char* end, RiToken* token)
-{
-    // <digit+>?.<digit+>([eE][+-]<digit+>)?
-    char* it = *it_;
-    token->kind = RiToken_Integer;
-    while (ri_rune_is_number_(*it)) ++it;
-
-    if (*it == '.') {
-        token->kind = RiToken_Real;
-        ++it;
-        while (ri_rune_is_number_(*it)) ++it;
-    }
-
-    if (*it == 'e' || *it == 'E') {
-        token->kind = RiToken_Real;
-        ++it;
-        if (*it == '+' || *it == '-') ++it;
-        if (!ri_rune_is_number_(*it)) {
-            token->pos.col += *it_ - it;
-            ri_error_set_(ri, RiError_UnexpectedCharacter, token->pos, "digit or '+' or '-' expected");
-            return false;
-        } else {
-            ++it;
-            while (ri_rune_is_number_(*it)) ++it;
-        }
-    }
-
-    switch (token->kind)
-    {
-        case RiToken_Integer: {
-            uint64_t i = 0;
-            char* start = *it_;
-            while (start < it && ri_rune_is_number_(*start)) {
-                // TODO: Check for overflow.
-                i = i * 10 + (*start - '0');
-                ++start;
-            }
-            token->integer = i;
-        } break;
-
-        case RiToken_Real: {
-            double r = strtod(*it_, NULL);
-            if (r == HUGE_VAL) {
-                ri_error_set_(ri, RiError_UnexpectedToken, token->pos, "real constant too large");
-            }
-            token->real = r;
-        } break;
-
-        default:
-            RI_UNREACHABLE;
-    }
-
-    *it_ = it;
-    return true;
-}
-
-static bool
-ri_lex_next_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiStream* stream = &ri->stream;
-    RiToken* token = &ri->token;
-    char* it = stream->it;
-    char* end = stream->end;
-
-next:
-    stream->it = it;
-
-    ri->token.kind = RiToken_Unknown;
-    ri->token.start = it;
-    ri->token.end = it;
-    ri->token.pos.row = ri->stream.line_index;
-    ri->token.pos.col = it - ri->stream.line;
-
-    if (stream->it == stream->end) {
-        token->kind = RiToken_End;
-        return true;
-    }
-
-    switch (*it)
-    {
-        case ' ': case '\t':
-            while (it < end && (it[0] == ' ' || it[0] == '\t')) {
-                ++it;
-            }
-            goto next;
-
-        case '\r':
-            ++it;
-            if (it < end && it[0] == '\n') {
-                ++it;
-            }
-            ++stream->line_index;
-            stream->line = it;
-            goto next;
-
-        case '\n':
-            ++it;
-            ++stream->line_index;
-            stream->line = it;
-            goto next;
-
-        case '(': ++it; token->kind = RiToken_LP; break;
-        case ')': ++it; token->kind = RiToken_RP; break;
-        case '{': ++it; token->kind = RiToken_LB; break;
-        case '}': ++it; token->kind = RiToken_RB; break;
-        case ',': ++it; token->kind = RiToken_Comma; break;
-        case ';': ++it; token->kind = RiToken_Semicolon; break;
-        case ':': ++it; token->kind = RiToken_Colon; break;
-
-        case '~': ++it; token->kind = RiToken_Tilde; break;
-
-        case '=': token->kind = ri_lex_one_or_two_(ri, &it, end, RiToken_Eq, '=', RiToken_EqEq); break;
-        case '*': token->kind = ri_lex_one_or_two_(ri, &it, end, RiToken_Star, '=', RiToken_StarEq); break;
-        case '%': token->kind = ri_lex_one_or_two_(ri, &it, end, RiToken_Percent, '=', RiToken_PercentEq); break;
-        case '^': token->kind = ri_lex_one_or_two_(ri, &it, end, RiToken_Beak, '=', RiToken_BeakEq); break;
-
-        case '!': token->kind = ri_lex_one_or_two_(ri, &it, end, RiToken_Bang, '=', RiToken_BangEq); break;
-
-        // TODO: Simplify following with call:
-        // ri_lex_map_(ri, &it, end, "=&", RiToken_Amp, RiToken_AmpEq, RiToken_AmpAmp)
-
-        // & &= &&
-        case '&':
-            ++it;
-            token->kind = RiToken_Amp;
-            if (it < stream->end) {
-                switch (it[0]) {
-                    case '=': token->kind = RiToken_AmpEq; ++it; break;
-                    case '&': token->kind = RiToken_AmpAmp; ++it; break;
-                }
-            }
-            break;
-        // | |= ||
-        case '|':
-            ++it;
-            token->kind = RiToken_Pipe;
-            if (it < stream->end) {
-                switch (it[0]) {
-                    case '=': token->kind = RiToken_PipeEq; ++it; break;
-                    case '|': token->kind = RiToken_PipePipe; ++it; break;
-                }
-            }
-            break;
-
-        // + += ++
-        case '+':
-            ++it;
-            token->kind = RiToken_Plus;
-            if (it < stream->end) {
-                switch (it[0]) {
-                    case '=': token->kind = RiToken_PlusEq; ++it; break;
-                    case '+': token->kind = RiToken_PlusPlus; ++it; break;
-                }
-            }
-            break;
-        // - -= --
-        case '-':
-            ++it;
-            token->kind = RiToken_Minus;
-            if (it < stream->end) {
-                switch (it[0]) {
-                    case '=': token->kind = RiToken_MinusEq; ++it; break;
-                    case '-': token->kind = RiToken_MinusMinus; ++it; break;
-                }
-            }
-            break;
-
-        // < <= <<
-        case '<':
-            ++it;
-            token->kind = RiToken_Lt;
-            if (it < stream->end) {
-                switch (it[0]) {
-                    case '=': token->kind = RiToken_LtEq; ++it; break;
-                    case '<': token->kind = RiToken_LtLt; ++it; break;
-                }
-            }
-            break;
-
-        // < <= <<
-        case '>':
-            ++it;
-            token->kind = RiToken_Gt;
-            if (it < stream->end) {
-                switch (it[0]) {
-                    case '>': token->kind = RiToken_GtGt; ++it; break;
-                    case '=': token->kind = RiToken_GtEq; ++it; break;
-                }
-            }
-            break;
-
-        case '/':
-            ++it;
-            if (it < end)
-            {
-                switch (it[0])
-                {
-                    case '/':
-                        while (it < end && it[0] != '\r' && it[0] != '\n') {
-                            ++it;
-                        }
-                        goto next;
-                    case '*':
-                        // TODO: Block comments.
-                        RI_TODO;
-                        break;
-                    case '=':
-                        ++it;
-                        token->kind = RiToken_SlashEq;
-                        break;
-                    default:
-                        ++it;
-                        token->kind = RiToken_Slash;
-                        break;
-                }
-            }
-            break;
-
-
-        case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g':
-        case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n':
-        case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u':
-        case 'v': case 'w': case 'x': case 'y': case 'z':
-        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
-        case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
-        case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U':
-        case 'V': case 'W': case 'X': case 'Y': case 'Z':
-        case '_': {
-            token->kind = RiToken_Identifier;
-            ++it;
-            while (it < end && ri_rune_is_id_(*it)) {
-                ++it;
-            }
-            token->id = ri_make_id_r_(ri, token->start, it);
-            if (token->id.items == ri->id_func) {
-                token->kind = RiToken_Keyword_Func;
-            } else if (token->id.items == ri->id_var) {
-                token->kind = RiToken_Keyword_Variable;
-            } else if (token->id.items == ri->id_const) {
-                token->kind = RiToken_Keyword_Const;
-            } else if (token->id.items == ri->id_type) {
-                token->kind = RiToken_Keyword_Type;
-            } else if (token->id.items == ri->id_struct) {
-                token->kind = RiToken_Keyword_Struct;
-            } else if (token->id.items == ri->id_union) {
-                token->kind = RiToken_Keyword_Union;
-            } else if (token->id.items == ri->id_enum) {
-                token->kind = RiToken_Keyword_Enum;
-            } else if (token->id.items == ri->id_return) {
-                token->kind = RiToken_Keyword_Return;
-            } else if (token->id.items == ri->id_if) {
-                token->kind = RiToken_Keyword_If;
-            } else if (token->id.items == ri->id_else) {
-                token->kind = RiToken_Keyword_Else;
-            } else if (token->id.items == ri->id_for) {
-                token->kind = RiToken_Keyword_For;
-            } else if (token->id.items == ri->id_switch) {
-                token->kind = RiToken_Keyword_Switch;
-            } else if (token->id.items == ri->id_case) {
-                token->kind = RiToken_Keyword_Case;
-            } else if (token->id.items == ri->id_default) {
-                token->kind = RiToken_Keyword_Default;
-            } else if (token->id.items == ri->id_break) {
-                token->kind = RiToken_Keyword_Break;
-            } else if (token->id.items == ri->id_continue) {
-                token->kind = RiToken_Keyword_Continue;
-            } else if (token->id.items == ri->id_fallthrough) {
-                token->kind = RiToken_Keyword_Fallthrough;
-            } else if (token->id.items == ri->id_true) {
-                token->kind = RiToken_Keyword_True;
-            } else if (token->id.items == ri->id_false) {
-                token->kind = RiToken_Keyword_False;
-            } else if (token->id.items == ri->id_nil) {
-                token->kind = RiToken_Keyword_Nil;
-            }
-        } break;
-
-        case '.':
-            ++it;
-            if (ri_rune_is_number_(*it)) {
-                --it;
-                if (ri_lex_number_(ri, &it, end, &ri->token) == false) {
-                    return false;
-                }
-                RI_CHECK(ri->token.kind == RiToken_Real);
-            } else {
-                token->kind = RiToken_Dot;
-            }
-            break;
-
-        case '0': case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9': {
-            if (ri_lex_number_(ri, &it, end, &ri->token) == false) {
-                return false;
-            }
-        } break;
-
-        default: {
-            ri_error_set_(ri, RiError_UnexpectedCharacter, ri->token.pos, "unexpected character '%c' (%d)", *it, *it);
-            return false;
-        } break;
-    }
-
-    token->end = it;
-    stream->it = it;
-
-    if (ri->debug_tokens) {
-        RI_LOG_DEBUG("'%.*s' (%d:%d)",
-            token->end - token->start,
-            token->start,
-            token->pos.row + 1,
-            token->pos.col + 1
-        );
-    }
-
-    return true;
-}
-
-static bool
-ri_lex_assert_token_(Ri* ri, RiTokenKind expected_kind)
-{
-    ri_error_check_(ri);
-
-    if (ri->token.kind != expected_kind) {
-        ri_error_set_unexpected_token_(ri, &ri->token);
+    RI_CHECK(scope);
+    RI_CHECK(ri_is_in(scope->kind, RiNode_Scope));
+    RI_CHECK(decl);
+    RI_CHECK(decl->decl.spec);
+    RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec));
+    RI_CHECK(scope == decl->owner);
+    ValueScalar id_ = { .ptr = decl->decl.spec->spec.id.items };
+    RiNode* decl_found = map_get(&scope->scope.map, id_).ptr;
+    if (decl_found != NULL) {
+        ri_error_set_(ri, RiError_Declared, decl->pos, "'%S' is already declared", decl->decl.spec->spec.id);
         return false;
     }
-
-    return true;
-}
-
-typedef enum RiLexNextResult_ {
-    RiLexNextIf_NoMatch = -1,
-    RiLexNextIf_Error = 0,
-    RiLexNextIf_Match = 1
-} RiLexNextResult_;
-
-static RiLexNextResult_
-ri_lex_next_if_(Ri* ri, RiTokenKind expected_kind)
-{
-    ri_error_check_(ri);
-
-    if (ri->token.kind != expected_kind) {
-        return RiLexNextIf_NoMatch;
-    }
-
-    if (!ri_lex_next_(ri)) {
-        return RiLexNextIf_Error;
-    }
-
-    return RiLexNextIf_Match;
-}
-
-static bool
-ri_lex_expect_token_(Ri* ri, RiTokenKind expected_kind)
-{
-    ri_error_check_(ri);
-
-    if (!ri_lex_assert_token_(ri, expected_kind)) {
-        return false;
-    }
-
-    if (!ri_lex_next_(ri)) {
-        return false;
-    }
-
-    return true;
-}
-
-
-static bool
-ri_stream_set_(Ri* ri, String stream)
-{
-    ri_error_check_(ri);
-
-    ri->stream.start = stream.items;
-    ri->stream.end = stream.items + stream.count;
-    ri->stream.it = stream.items;
-    ri->stream.line = stream.items;
-
-    return ri_lex_next_(ri);
+    map_put(&scope->scope.map, id_, (ValueScalar){ .ptr = decl });
+    return decl;
 }
 
 //
@@ -726,7 +271,7 @@ ri_set_type_identity_(Ri* ri, RiNode* node)
 static RiNode*
 ri_complete_type_(Ri* ri, RiPos pos, RiNode* type)
 {
-    ri_error_check_(ri);
+    RI_CHECK(ri->error.kind == RiError_None);
     RI_CHECK(type);
     RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type));
 
@@ -774,11 +319,11 @@ ri_complete_type_(Ri* ri, RiPos pos, RiNode* type)
 static RiNode*
 ri_retof_(Ri* ri, RiNode* node)
 {
-    ri_error_check_(ri);
+    RI_CHECK(ri->error.kind == RiError_None);
 
     if (ri_is_in(node->kind, RiNode_Expr_Binary_Comparison)) {
         // Always bool
-        return ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
+        return ri->nodes[RiNode_Spec_Type_Number_Bool];
     } else if (ri_is_in(node->kind, RiNode_Expr_Binary_Numeric)) {
         // Same return value as zero argument.
         return ri_retof_(ri, node->binary.argument0);
@@ -843,7 +388,7 @@ ri_retof_(Ri* ri, RiNode* node)
                         return ri_get_spec_(ri, output->decl.spec->spec.var.type);
                     }
                     case 0:
-                        return ri->node_meta[RiNode_Spec_Type_None].node;
+                        return ri->nodes[RiNode_Spec_Type_None];
 
                     default: {
                         // TODO: Multiple return arguments.
@@ -938,1441 +483,6 @@ ri_alignof_(Ri* ri, RiPos pos, RiNode* type)
 }
 
 //
-//
-//
-
-static RiNode*
-ri_make_node_(Ri* ri, RiPos pos, RiNodeKind kind)
-{
-    RiNode* node = arena_push_t(&ri->arena, RiNode);
-    memset(node, 0, sizeof(RiNode));
-    node->kind = kind;
-    node->owner = ri->scope;
-    node->index = ++ri->index;
-    node->pos = pos;
-    return node;
-}
-
-static RiNode*
-ri_make_scope_(Ri* ri, RiPos pos, RiNodeKind kind)
-{
-    RI_CHECK(ri_is_in(kind, RiNode_Scope));
-    RiNode* node = ri_make_node_(ri, pos, kind);
-    return node;
-}
-
-static RiNode*
-ri_make_identifier_(Ri* ri, RiPos pos, String name)
-{
-    CHECK(name.items != 0);
-    CHECK(name.count > 0);
-    // TODO: Checks.
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Id);
-    node->id.name = name;
-    return node;
-}
-
-//
-// Variable
-//
-
-static RiNode*
-ri_make_spec_var_(Ri* ri, RiPos pos, String id, RiNode* type, RiVarKind kind)
-{
-    RiNode* spec = ri_make_node_(ri, pos, RiNode_Spec_Var);
-    spec->spec.id = id;
-    spec->spec.var.type = type;
-    spec->spec.var.kind = kind;
-    spec->spec.var.slot = RI_INVALID_SLOT;
-    return spec;
-}
-
-//
-// Constant
-//
-
-static RiNode*
-ri_make_spec_constant_(Ri* ri, RiPos pos, String id, RiNode* type, RiLiteral value)
-{
-    RI_CHECK(type);
-    RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type_Number));
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Constant);
-    node->spec.id = id;
-    node->spec.constant.type = type;
-    node->spec.constant.value = value;
-    return node;
-}
-
-//
-// Functions
-//
-
-static RiNode*
-ri_make_spec_func_(Ri* ri, RiPos pos, String id, RiNode* type, RiNode* scope)
-{
-    RI_CHECK(type);
-    RI_CHECK(type->kind == RiNode_Spec_Type_Func);
-    RI_CHECK(scope);
-    RI_CHECK(scope->kind == RiNode_Scope_Function_Root);
-
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Func);
-    node->spec.id = id;
-    node->spec.func.type = type;
-    node->spec.func.scope = scope;
-    node->spec.func.slot = RI_INVALID_SLOT;
-    return node;
-}
-
-//
-// Types
-//
-
-static RiNode*
-ri_make_spec_type_func_(Ri* ri, RiPos pos, String id, RiNodeArray inputs, RiNodeArray outputs) {
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Spec_Type_Func);
-    node->spec.id = id;
-    node->spec.type.func.inputs = inputs;
-    node->spec.type.func.outputs = outputs;
-    return node;
-}
-
-static RiNode*
-ri_make_spec_type_number_(Ri* ri, RiPos pos, String id, RiNodeKind kind)
-{
-    RI_CHECK(ri_is_in(kind, RiNode_Spec_Type_Number));
-    RiNode* node = ri_make_node_(ri, pos, kind);
-    node->spec.id = id;
-    return node;
-}
-
-//
-//
-//
-
-static RiNode*
-ri_make_decl_(Ri* ri, RiPos pos, RiNode* spec)
-{
-    RI_CHECK(spec);
-    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || spec->kind == RiNode_Id);
-
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Decl);
-    node->decl.spec = spec;
-    array_push(&node->owner->scope.decl, node);
-    return node;
-}
-
-//
-// Expressions
-//
-
-static RiNode*
-ri_make_expr_call_(Ri* ri, RiPos pos, RiNode* func)
-{
-    RI_CHECK(func);
-    // TODO: Check func node type?
-
-    RiNode* node = ri_make_node_(ri, pos, RiNode_Expr_Call);
-    node->call.func = func;
-    return node;
-}
-
-static RiNode*
-ri_make_expr_binary_(Ri* ri, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
-{
-    RI_CHECK(ri_is_in(kind, RiNode_Expr_Binary));
-    RI_CHECK(argument0);
-    RI_CHECK(ri_is_expr_like(argument0->kind));
-    RI_CHECK(argument1);
-    RI_CHECK(ri_is_expr_like(argument1->kind));
-
-    RiNode* node = ri_make_node_(ri, pos, kind);
-    node->binary.argument0 = argument0;
-    node->binary.argument1 = argument1;
-    return node;
-}
-
-static RiNode*
-ri_make_expr_unary_(Ri* ri, RiPos pos, RiNodeKind kind, RiNode* argument)
-{
-    RI_CHECK(ri_is_in(kind, RiNode_Expr_Unary));
-    RI_CHECK(argument);
-    RI_CHECK(ri_is_expr_like(argument->kind));
-
-    RiNode* node = ri_make_node_(ri, pos, kind);
-    node->unary.argument = argument;
-    return node;
-}
-
-RiNode*
-ri_make_expr_cast_(Ri* ri, RiPos pos, RiNode* expr, RiNode* type_to)
-{
-    RI_CHECK(type_to);
-    RiNode* type_from = ri_retof_(ri, expr);
-    if (type_from != type_to) {
-        // TODO: Check if we can cast.
-        // TODO: Check if we should cast.
-        RiNode* node = ri_make_node_(ri, pos, RiNode_Expr_Cast);
-        array_push(&node->call.arguments, type_to);
-        array_push(&node->call.arguments, expr);
-        return node;
-    }
-    return expr;
-}
-
-//
-// Statements
-//
-
-static RiNode*
-ri_make_st_assign_(Ri *ri, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
-{
-    RI_CHECK(ri_is_in(kind, RiNode_St_Assign));
-    RI_CHECK(argument0);
-    RI_CHECK(
-        ri_is_expr_like(argument0->kind) ||
-        argument0->kind == RiNode_Spec_Var ||
-        (argument0->kind == RiNode_Decl && argument0->decl.spec->kind == RiNode_Spec_Var)
-    );
-    RI_CHECK(argument1);
-    RI_CHECK(ri_is_expr_like(argument1->kind));
-
-    RiNode* node = ri_make_node_(ri, pos, kind);
-    node->binary.argument0 = argument0;
-    node->binary.argument1 = argument1;
-    return node;
-}
-
-static RiNode*
-ri_make_st_expr_(Ri* ri, RiPos pos, RiNode* expr)
-{
-    RI_CHECK(ri_is_expr_like(expr->kind));
-
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Expr);
-    node->st_expr = expr;
-    return node;
-}
-
-static RiNode*
-ri_make_st_return_(Ri* ri, RiPos pos, RiNode* argument)
-{
-    RI_CHECK(argument == NULL || ri_is_expr_like(argument->kind));
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Return);
-    node->st_return.argument = argument;
-    return node;
-}
-
-static RiNode*
-ri_make_st_if_(Ri* ri, RiPos pos, RiNode* pre, RiNode* condition, RiNode* scope)
-{
-    RI_CHECK(condition);
-    RI_CHECK(scope);
-    RI_CHECK(scope->scope.statements.count >= 0 && scope->scope.statements.count <= 2);
-
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_If);
-    node->st_if.pre = pre;
-    node->st_if.condition = condition;
-    node->st_if.scope = scope;
-    return node;
-}
-
-static RiNode*
-ri_make_st_for_(Ri* ri, RiPos pos, RiNode* pre, RiNode* condition, RiNode* post, RiNode* scope)
-{
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_For);
-    node->st_for.pre = pre;
-    node->st_for.condition = condition;
-    node->st_for.post = post;
-    node->st_for.scope = scope;
-    return node;
-}
-
-static RiNode*
-ri_make_st_switch_(Ri* ri, RiPos pos, RiNode* pre, RiNode* expr, RiNode* scope)
-{
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Switch);
-    node->st_switch.pre = pre;
-    node->st_switch.expr = expr;
-    node->st_switch.scope = scope;
-    return node;
-}
-
-static RiNode*
-ri_make_st_switch_case_(Ri* ri, RiPos pos, RiNode* expr)
-{
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Switch_Case);
-    node->st_switch_case.expr = expr;
-    return node;
-}
-
-static RiNode*
-ri_make_st_switch_default_(Ri* ri, RiPos pos)
-{
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Switch_Default);
-    return node;
-}
-
-static RiNode*
-ri_make_st_break_(Ri* ri, RiPos pos)
-{
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Break);
-    return node;
-}
-
-static RiNode*
-ri_make_st_continue_(Ri* ri, RiPos pos)
-{
-    RiNode* node = ri_make_node_(ri, pos, RiNode_St_Continue);
-    return node;
-}
-
-//
-//
-//
-
-static bool
-ri_scope_set_(Ri* ri, RiNode* decl)
-{
-    RI_CHECK(decl);
-    RI_CHECK(decl->decl.spec);
-    RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec));
-    ValueScalar id_ = { .ptr = decl->decl.spec->spec.id.items };
-    RiNode* decl_found = map_get(&ri->scope->scope.map, id_).ptr;
-    if (decl_found != NULL) {
-        ri_error_set_(ri, RiError_Declared, decl->pos, "'%S' is already declared", decl->decl.spec->spec.id);
-        return false;
-    }
-    map_put(&ri->scope->scope.map, id_, (ValueScalar){ .ptr = decl });
-    return decl;
-}
-
-//
-// Expressions parser.
-//
-
-static RiNode* ri_parse_expr_(Ri* ri);
-static RiNode* ri_parse_expr_operator_(Ri* ri, int precedence);
-
-RiNode*
-ri_parse_expr_operand_(Ri* ri)
-{
-    switch (ri->token.kind)
-    {
-        case RiToken_Identifier: {
-            RiToken token = ri->token;
-            if (ri_lex_next_(ri)) {
-                return ri_make_identifier_(ri, token.pos, token.id);
-            }
-            return NULL;
-        } break;
-
-        case RiToken_Integer: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
-            node->value.constant.literal.integer = ri->token.integer;
-            node->value.constant.type = ri->node_meta[RiNode_Spec_Type_Number_None_Int].node;
-            if (ri_lex_next_(ri)) {
-                return node;
-            }
-            return NULL;
-        } break;
-
-        case RiToken_Real: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
-            node->value.constant.literal.real = ri->token.real;
-            node->value.constant.type = ri->node_meta[RiNode_Spec_Type_Number_None_Real].node;
-            if (ri_lex_next_(ri)) {
-                return node;
-            }
-            return NULL;
-        } break;
-
-        // TODO: case RiToken_Real:
-        // TODO: case RiToken_String:
-
-        case RiToken_Keyword_False:
-        case RiToken_Keyword_True: {
-            RiNode* node = ri_make_node_(ri, ri->token.pos, RiNode_Value_Constant);
-            node->value.constant.literal.boolean = (ri->token.kind == RiToken_Keyword_True);
-            node->value.constant.type = ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
-            if (ri_lex_next_(ri)) {
-                return node;
-            }
-            return NULL;
-        }
-
-        case RiToken_LP: {
-            if (ri_lex_next_(ri)) {
-                RiNode* node = ri_parse_expr_(ri);
-                if (node && ri_lex_expect_token_(ri, RiToken_RP)) {
-                    return node;
-                }
-            }
-            return NULL;
-        } break;
-    }
-
-    ri_error_set_unexpected_token_(ri, &ri->token);
-    return NULL;
-}
-
-RiNode*
-ri_parse_expr_dot_(Ri* ri)
-{
-    RiNode* L = ri_parse_expr_operand_(ri);
-    while (L && ri->token.kind == RiToken_Dot) {
-        RiToken token = ri->token;
-        if (ri_lex_next_(ri)) {
-            RiNode* R = ri_parse_expr_operand_(ri);
-            if (R) {
-                L = ri_make_expr_binary_(ri, token.pos, RiNode_Expr_Binary_Select, L, R);
-                continue;
-            }
-        }
-        return NULL;
-    }
-    return L;
-}
-
-static bool
-ri_parse_expr_call_arguments_(Ri* ri, RiNode* call)
-{
-    while (ri_lex_next_if_(ri, RiToken_RP) == RiLexNextIf_NoMatch) {
-        RiNode* expr = ri_parse_expr_(ri);
-        if (!expr) {
-            return false;
-        }
-        array_push(&call->call.arguments, expr);
-        if (ri_lex_next_if_(ri, RiToken_Comma) == RiLexNextIf_Error) {
-            return false;
-        }
-    }
-    if (ri->error.kind) {
-        return false;
-    }
-    return true;
-}
-
-RiNode*
-ri_parse_expr_call_(Ri* ri)
-{
-    RiNode* L = ri_parse_expr_dot_(ri);
-    while (ri->token.kind == RiToken_LP) {
-        if (ri_lex_next_(ri)) {
-            L = ri_make_expr_call_(ri, L->pos, L);
-            if (ri_parse_expr_call_arguments_(ri, L)) {
-                continue;
-            }
-        }
-        return NULL;
-    }
-    return L;
-}
-
-static RiNode*
-ri_parse_expr_operator_unary_(Ri* ri)
-{
-    switch (ri->token.kind) {
-        case RiToken_Bang:
-        case RiToken_Tilde:
-        case RiToken_Plus:
-        case RiToken_Minus:
-        case RiToken_Amp: {
-            RiToken token = ri->token;
-            if (ri_lex_next_(ri)) {
-                RiNode* R = ri_parse_expr_operator_unary_(ri);
-                if (R) {
-                    return ri_make_expr_unary_(ri, token.pos, RI_TOKEN_TO_OP_[token.kind].unary, R);
-                }
-            }
-        } return NULL;
-    }
-    return ri_parse_expr_call_(ri);
-}
-
-static RiNode*
-ri_parse_expr_operator_binary_(Ri* ri, RiNodeKind op, RiNode* L, int super_precedence)
-{
-    RI_CHECK(ri_is_in(op, RiNode_Expr_Binary));
-    RiToken token = ri->token;
-    if (ri_lex_next_(ri)) {
-        RiNode* R = ri_parse_expr_operator_(ri, super_precedence);
-        if (R) {
-            return ri_make_expr_binary_(ri, token.pos, op, L, R);
-        }
-    }
-    return NULL;
-}
-
-static RiNode*
-ri_parse_expr_operator_(Ri* ri, int precedence)
-{
-    RI_CHECK(precedence >= 0);
-    if (precedence == 0) {
-        return ri_parse_expr_operator_unary_(ri);
-    }
-
-    RiNode* L = ri_parse_expr_operator_(ri, precedence - 100);
-    RiTokenKind token_kind;
-    while (L)
-    {
-        token_kind = ri->token.kind;
-        switch (precedence)
-        {
-            case 0:
-                RI_ABORT("not reached");
-                return L;
-
-            // * / %
-            case 500:
-                switch (token_kind) {
-                    case RiToken_Star: case RiToken_Slash: case RiToken_Percent:
-                        L = ri_parse_expr_operator_binary_(
-                            ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                        continue;
-                    default:
-                        return L;
-                }
-                RI_ABORT("not reached");
-
-            // + -
-            case 600:
-                switch (token_kind) {
-                    case RiToken_Minus: case RiToken_Plus:
-                        L = ri_parse_expr_operator_binary_(
-                            ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                        continue;
-                    default:
-                        return L;
-                }
-                RI_ABORT("not reached");
-
-            // << >>
-            case 700:
-                switch (token_kind) {
-                    case RiToken_LtLt: case RiToken_GtGt:
-                        L = ri_parse_expr_operator_binary_(
-                            ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                        continue;
-                    default:
-                        return L;
-                }
-                RI_ABORT("not reached");
-
-            // > >= < <=
-            case 800:
-                switch (token_kind) {
-                    case RiToken_Gt: case RiToken_GtEq:
-                    case RiToken_Lt: case RiToken_LtEq:
-                        L = ri_parse_expr_operator_binary_(
-                            ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                        continue;
-                    default:
-                        return L;
-                }
-                RI_ABORT("not reached");
-
-            // == !=
-            case 900:
-                switch (token_kind) {
-                    case RiToken_EqEq: case RiToken_BangEq:
-                        L = ri_parse_expr_operator_binary_(
-                            ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                        continue;
-                    default:
-                        return L;
-                }
-                RI_ABORT("not reached");
-
-            // &
-            case 1000: if (token_kind == RiToken_Amp) {
-                L = ri_parse_expr_operator_binary_(
-                    ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                continue;
-            } return L;
-
-            // ^
-            case 1100: if (token_kind == RiToken_Beak) {
-                L = ri_parse_expr_operator_binary_(
-                    ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                continue;
-            } return L;
-
-            // |
-            case 1200: if (token_kind == RiToken_Pipe) {
-                L = ri_parse_expr_operator_binary_(
-                    ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                continue;
-            } return L;
-
-            // &&
-            case 1300: if (token_kind == RiToken_AmpAmp) {
-                L = ri_parse_expr_operator_binary_(
-                    ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                continue;
-            } return L;
-
-            // ||
-            case 1400: if (token_kind == RiToken_PipePipe) {
-                L = ri_parse_expr_operator_binary_(
-                    ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence - 100);
-                continue;
-            } return L;
-
-            // =
-            // case 1600: if (token_kind == RiToken_Eq) {
-            //     L = ri_parse_expr_operator_binary_(
-            //         ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence);
-            // } return L;
-
-            // :
-            // case 1800: if (token_kind == RiToken_Colon) {
-            //     L = ri_parse_expr_operator_binary_(
-            //         ri, RI_TOKEN_TO_OP_[token_kind].binary, L, precedence);
-            // } return L;
-
-            default:
-                return L;
-        }
-    }
-    return L;
-}
-
-static RiNode*
-ri_parse_expr_(Ri* ri)
-{
-    return ri_parse_expr_operator_(ri, 2000);
-}
-
-//
-// Declarations parser.
-//
-
-static RiNode* ri_parse_decl_(Ri* ri);
-static RiNode* ri_parse_scope_(Ri* ri, RiTokenKind end, RiNodeKind scope_kind);
-static RiNode* ri_parse_spec_partial_func_type_(Ri* ri, RiPos pos);
-
-static RiNode*
-ri_parse_type_(Ri* ri)
-{
-    // TODO: Parse Id, or parse type spec (func..., struct...)
-    ri_error_check_(ri);
-
-    RiToken token = ri->token;
-    switch (ri->token.kind)
-    {
-        case RiToken_Keyword_Func:
-            if (!ri_lex_next_(ri)) {
-                return NULL;
-            }
-            return ri_parse_spec_partial_func_type_(ri, token.pos);
-        case RiToken_Identifier:
-            if (!ri_lex_next_(ri)) {
-                return NULL;
-            }
-            return ri_make_identifier_(ri, token.pos, token.id);
-        default:
-            ri_error_set_unexpected_token_(ri, &token);
-            return NULL;
-    }
-}
-
-static RiNode*
-ri_parse_decl_variable_(Ri* ri)
-{
-    ri_error_check_(ri);
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Variable);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiToken token = ri->token;
-    if (!ri_lex_expect_token_(ri, RiToken_Identifier)) {
-        return NULL;
-    }
-
-    RiNode* type;
-    // `=` or `type-spec`
-    if (ri->token.kind == RiToken_Eq) {
-        // if (!ri_lex_next_(ri)) {
-        //     return NULL;
-        // }
-        type = ri->node_meta[RiNode_Spec_Type_Infer].node;
-    } else {
-        type = ri_parse_type_(ri);
-        if (!type) {
-            return NULL;
-        }
-    }
-
-    RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type, RiVar_Local);
-    RiNode* decl = ri_make_decl_(ri, token.pos, spec);
-    return decl;
-}
-
-static RiNode*
-ri_parse_decl_type_func_input_arg_(Ri* ri)
-{
-    // <id> <type-spec>
-    // type-spec: <id> | _ | function(...)(...) | struct {...} ...
-
-    // TODO: Implement short syntax for arguments of same type `function (a, b int32)`.
-    // TODO: Implement `...int32` for variable arity.
-
-    RiToken token = ri->token;
-    if (!ri_lex_expect_token_(ri, RiToken_Identifier)) {
-        return NULL;
-    }
-
-    RiNode* type = ri_parse_type_(ri);
-    if (!type) {
-        return NULL;
-    }
-
-    RiNode* spec = ri_make_spec_var_(ri, token.pos, token.id, type, RiVar_Input);
-    RiNode* decl = ri_make_decl_(ri, token.pos, spec);
-    return decl;
-}
-
-static bool
-ri_parse_decl_type_func_input_arg_list_(Ri* ri, RiNodeArray* list)
-{
-    if (!ri_lex_expect_token_(ri, RiToken_LP)) {
-        return false;
-    }
-
-    RiNode* decl_arg;
-    while (ri->token.kind != RiToken_RP)
-    {
-        decl_arg = ri_parse_decl_type_func_input_arg_(ri);
-        if (!decl_arg) {
-            return false;
-        }
-        array_push(list, decl_arg);
-        if (ri_lex_next_if_(ri, RiToken_Comma) == RiLexNextIf_Error) {
-            return false;
-        }
-    }
-    if (!ri_lex_next_(ri)) {
-        return false;
-    }
-
-    return true;
-}
-
-static bool
-ri_parse_decl_type_func_output_arg_(Ri* ri, RiNodeArray* outputs)
-{
-    if (ri->token.kind != RiToken_Identifier) {
-        return true;
-    }
-
-    RiNode* type = ri_parse_type_(ri);
-    if (type) {
-        RiNode* spec = ri_make_spec_var_(ri, type->pos, (String){0}, type, RiVar_Output);
-        RiNode* decl = ri_make_decl_(ri, type->pos, spec);
-        array_push(outputs, decl);
-        return true;
-    }
-
-    return false;
-}
-
-static RiNode*
-ri_parse_spec_partial_func_type_(Ri* ri, RiPos pos)
-{
-    ri_error_check_(ri);
-
-    RiNodeArray inputs = {0};
-    RiNodeArray outputs = {0};
-    if (!ri_parse_decl_type_func_input_arg_list_(ri, &inputs)) {
-        return NULL;
-    }
-
-    if (!ri_parse_decl_type_func_output_arg_(ri, &outputs)) {
-        return NULL;
-    }
-
-    RiNode* type = ri_make_spec_type_func_(ri, pos, RI_ID_NULL, inputs, outputs);
-    return type;
-}
-
-static RiNode*
-ri_parse_spec_partial_func_(Ri* ri, RiPos pos, String id)
-{
-    ri_error_check_(ri);
-    RI_CHECK(id.items);
-    RI_CHECK(id.count);
-
-    // NOTE: Starting and setting scope here, so all the nodes
-    // created within have owner set to the scope.
-    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_Function_Root);
-    ri->scope = scope;
-    // RI_LOG_DEBUG("function '%S' scope %d", id, scope->index);
-
-    RiNode* type = ri_parse_spec_partial_func_type_(ri, pos);
-    if (!type) {
-        return NULL;
-    }
-
-    RiNode* scope_body = NULL;
-    switch (ri_lex_next_if_(ri, RiToken_LB))
-    {
-        case RiLexNextIf_Match: {
-            scope_body = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_Function_Body);
-            if (!scope_body) {
-                return NULL;
-            }
-
-            // TODO: Make parsing arguments actually generate variable decls, so
-            // this won't be needed.
-
-            RiNode* it;
-            array_each(&type->spec.type.func.inputs, &it) {
-                map_put(&scope->scope.map,
-                    (ValueScalar){ .ptr = it->decl.spec->spec.id.items },
-                    (ValueScalar){ .ptr = it }
-                );
-            }
-            // TODO: Multiple return values.
-            // TODO: Named return variables.
-            // array_each(&type->spec.type.func.outputs, &it) {
-            //     map_put(&scope->scope.map,
-            //         (ValueScalar){ .ptr = it->decl.spec->spec.id.items },
-            //         (ValueScalar){ .ptr = it }
-            //     );
-            // }
-            array_push(&scope->scope.statements, scope_body);
-        } break;
-        case RiLexNextIf_Error:
-            return NULL;
-    }
-
-    RI_CHECK(ri->scope == scope);
-    ri->scope = scope->owner;
-
-    RiNode* spec = ri_make_spec_func_(ri, pos, id, type, scope_body ? scope : NULL);
-    RiNode* decl = ri_make_decl_(ri, pos, spec);
-    return decl;
-}
-
-static RiNode*
-ri_parse_spec_func_or_func_type_(Ri* ri)
-{
-    ri_error_check_(ri);
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Func);
-    RiPos pos = ri->token.pos;
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiNode* node = NULL;
-    String id = ri->token.id;
-    switch (ri_lex_next_if_(ri, RiToken_Identifier))
-    {
-        case RiLexNextIf_Match:
-            node = ri_parse_spec_partial_func_(ri, pos, id);
-            break;
-        case RiLexNextIf_NoMatch:
-            node = ri_parse_spec_partial_func_type_(ri, pos);
-            break;
-        case RiLexNextIf_Error:
-            node = NULL;
-            break;
-    }
-
-    return node;
-}
-
-static RiNode*
-ri_parse_decl_type_(Ri* ri)
-{
-    ri_error_check_(ri);
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Type);
-    RiPos pos = ri->token.pos;
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    String id = ri->token.id;
-    if (!ri_lex_expect_token_(ri, RiToken_Identifier)) {
-        return NULL;
-    }
-
-    RiNode* type = ri_parse_type_(ri);
-    if (!type) {
-        return NULL;
-    }
-    RI_CHECK(type->spec.id.items == 0);
-    type->spec.id = id;
-
-    RiNode* decl = ri_make_decl_(ri, pos, type);
-    return decl;
-}
-
-static RiNode*
-ri_parse_decl_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiNode* node = NULL;
-    switch (ri->token.kind)
-    {
-        // TODO: Type is not expected here, only function declaration.
-        case RiToken_Keyword_Func: node = ri_parse_spec_func_or_func_type_(ri); break;
-        case RiToken_Keyword_Variable: node = ri_parse_decl_variable_(ri); break;
-        case RiToken_Keyword_Type: node = ri_parse_decl_type_(ri); break;
-        default:
-            ri_error_set_unexpected_token_(ri, &ri->token);
-            break;
-    }
-
-    if (node) {
-        if (!ri_scope_set_(ri, node)) {
-            return NULL;
-        }
-    }
-    return node;
-}
-
-//
-// Statements parser.
-//
-
-static RiNode* ri_parse_st_(Ri* ri, RiNodeKind scope_kind);
-static RiNode* ri_parse_st_simple_(Ri* ri);
-
-static RiNode*
-ri_parse_st_expr_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiNode* expr = ri_parse_expr_(ri);
-    if (!expr) {
-        return NULL;
-    }
-
-    RiTokenKind token_kind = ri->token.kind;
-    if (ri_tokenkind_in(token_kind, RiToken_Assign)) {
-        if (!ri_lex_next_(ri)) {
-            return NULL;
-        }
-        RiNode* right = ri_parse_expr_(ri);
-        if (!right) {
-            return NULL;
-        }
-        return ri_make_st_assign_(ri, expr->pos, RI_TOKEN_TO_OP_[token_kind].assign, expr, right);
-    } else {
-        return ri_make_st_expr_(ri, expr->pos, expr);
-    }
-}
-
-static RiNode*
-ri_parse_st_return_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiPos pos = ri->token.pos;
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Return);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiNode* argument = NULL;
-    if (ri->token.kind != RiToken_Semicolon) {
-        argument = ri_parse_expr_(ri);
-        if (!argument) {
-            return NULL;
-        }
-    }
-
-    if (!ri_lex_expect_token_(ri, RiToken_Semicolon)) {
-        return NULL;
-    }
-
-    RiNode* statement = ri_make_st_return_(ri, pos, argument);
-    return statement;
-}
-
-static RiNode*
-ri_parse_st_if_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiPos pos = ri->token.pos;
-    RI_CHECK(ri->token.kind == RiToken_Keyword_If);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_If_Root);
-    ri->scope = scope;
-
-    RiNode* condition = NULL;
-    RiNode* pre = ri_parse_st_simple_(ri);
-    if (!pre) {
-        return NULL;
-    }
-
-    switch (ri_lex_next_if_(ri, RiToken_Semicolon))
-    {
-        case RiLexNextIf_Match: {
-            condition = ri_parse_expr_(ri);
-            if (!condition) {
-                return NULL;
-            }
-        } break;
-
-        case RiLexNextIf_NoMatch: {
-            condition = pre;
-            if (condition->kind != RiNode_St_Expr) {
-                ri_error_set_(ri, RiError_UnexpectedStatement, condition->pos, "conditional expression expected");
-                return NULL;
-            }
-            condition = condition->st_expr;
-            RI_CHECK(ri_is_expr_like(condition->kind));
-            pre = NULL;
-        } break;
-
-        case RiLexNextIf_Error:
-            return NULL;
-    }
-
-
-    if (!ri_lex_expect_token_(ri, RiToken_LB)) {
-        return NULL;
-    }
-
-    RiNode* scope_else = NULL;
-    RiNode* scope_then = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_If_Body);
-    if (!scope_then) {
-        return NULL;
-    }
-    array_push(&scope->scope.statements, scope_then);
-
-    switch (ri_lex_next_if_(ri, RiToken_Keyword_Else))
-    {
-        case RiLexNextIf_Match:
-            if (ri->token.kind == RiToken_Keyword_If) {
-                RiNode* else_if = ri_parse_st_if_(ri);
-                if (!else_if) {
-                    return NULL;
-                }
-                array_push(&scope->scope.statements, else_if);
-            } else {
-                if (!ri_lex_expect_token_(ri, RiToken_LB)) {
-                    return NULL;
-                }
-                scope_else = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_If_Body);
-                if (!scope_else) {
-                    return NULL;
-                }
-                array_push(&scope->scope.statements, scope_else);
-            }
-            break;
-        case RiLexNextIf_Error:
-            return NULL;
-    }
-
-    RI_CHECK(ri->scope == scope);
-    ri->scope = scope->owner;
-
-    RiNode* node = ri_make_st_if_(ri, pos, pre, condition, scope);
-    return node;
-}
-
-static RiNode*
-ri_parse_st_for_(Ri* ri)
-{
-    ri_error_check_(ri);
-    RiPos pos = ri->token.pos;
-    RI_CHECK(ri->token.kind == RiToken_Keyword_For);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_For_Root);
-    ri->scope = scope;
-
-    RiNode* pre = NULL;
-    RiNode* condition = NULL;
-    RiNode* post = NULL;
-    RiNode* scope_block = NULL;
-
-    if (ri_lex_next_if_(ri, RiToken_LB) == RiLexNextIf_NoMatch) {
-        // for pre?; condition?; post? { ... }
-        if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_NoMatch) {
-            pre = ri_parse_st_simple_(ri);
-            if (!pre) {
-                return NULL;
-            }
-            if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_NoMatch) {
-                // for condition { ... }
-                condition = pre;
-                if (condition->kind != RiNode_St_Expr) {
-                    ri_error_set_(ri, RiError_UnexpectedStatement, condition->pos, "conditional expression expected");
-                    return NULL;
-                }
-                condition = condition->st_expr;
-                RI_CHECK(ri_is_expr_like(condition->kind));
-                pre = NULL;
-                goto skip;
-            }
-        }
-
-        if (ri->error.kind) {
-            return NULL;
-        }
-
-        // for ; condition?; post? { ... }
-        if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_NoMatch) {
-            // for ; condition; post?
-            condition = ri_parse_expr_(ri);
-            if (!condition) {
-                return NULL;
-            }
-            if (!ri_lex_expect_token_(ri, RiToken_Semicolon)) {
-                return NULL;
-            }
-        } else {
-            // for ; ; post?
-        }
-
-        if (ri->error.kind) {
-            return NULL;
-        }
-
-        if (ri->token.kind != RiToken_LB) {
-            // for ; condition?; post { ... }
-            post = ri_parse_st_simple_(ri);
-            if (!post) {
-                return NULL;
-            }
-        } else {
-            // for ; condition?; { ... }
-        }
-
-skip:;
-        if (!ri_lex_expect_token_(ri, RiToken_LB)) {
-            return NULL;
-        }
-    }
-
-
-    scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_For_Body);
-    if (!scope_block) {
-        return NULL;
-    }
-    array_push(&scope->scope.statements, scope_block);
-
-    RI_CHECK(ri->scope == scope);
-    ri->scope = scope->owner;
-
-    RiNode* node = ri_make_st_for_(ri, pos, pre, condition, post, scope);
-    return node;
-}
-
-static RiNode*
-ri_parse_st_switch_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiPos pos = ri->token.pos;
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Switch);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiNode* scope = ri_make_scope_(ri, pos, RiNode_Scope_Switch_Root);
-    ri->scope = scope;
-
-    RiNode* pre = NULL;
-    RiNode* condition = NULL;
-
-    if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_NoMatch)
-    {
-        // switch pre; condition
-        // switch condition
-        pre = ri_parse_st_simple_(ri);
-        if (!pre) {
-            return NULL;
-        }
-
-        if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_NoMatch)
-        {
-            // switch condition { ... }
-            condition = pre;
-            if (condition->kind != RiNode_St_Expr) {
-                ri_error_set_(ri, RiError_UnexpectedStatement, condition->pos, "conditional expression expected");
-                return NULL;
-            }
-            condition = condition->st_expr;
-            RI_CHECK(ri_is_expr_like(condition->kind));
-            pre = NULL;
-            goto skip;
-        }
-    }
-
-    if (ri->error.kind) {
-        return NULL;
-    }
-
-    condition = ri_parse_expr_(ri);
-    if (!condition) {
-        return NULL;
-    }
-
-skip:;
-
-    if (!ri_lex_expect_token_(ri, RiToken_LB)) {
-        return NULL;
-    }
-
-    RiNode* scope_block = ri_parse_scope_(ri, RiToken_RB, RiNode_Scope_Switch_Body);
-    if (!scope_block) {
-        return NULL;
-    }
-
-    array_push(&scope->scope.statements, scope_block);
-
-    RI_CHECK(ri->scope == scope);
-    ri->scope = scope->owner;
-
-    RiNode* node = ri_make_st_switch_(ri, pos, pre, condition, scope);
-    return node;
-}
-
-static RiNode*
-ri_parse_st_switch_case_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiPos pos = ri->token.pos;
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Case);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-
-    RiNode* expr = ri_parse_expr_(ri);
-    if (!ri_lex_expect_token_(ri, RiToken_Colon)) {
-        return NULL;
-    }
-
-    RiNode* node = ri_make_st_switch_case_(ri, pos, expr);
-    return node;
-}
-
-static RiNode*
-ri_parse_st_switch_default_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiPos pos = ri->token.pos;
-    RI_CHECK(ri->token.kind == RiToken_Keyword_Default);
-    if (!ri_lex_next_(ri)) {
-        return NULL;
-    }
-    if (!ri_lex_expect_token_(ri, RiToken_Colon)) {
-        return NULL;
-    }
-
-    RiNode* node = ri_make_st_switch_default_(ri, pos);
-    return node;
-}
-
-static RiNode*
-ri_parse_st_simple_(Ri* ri)
-{
-    ri_error_check_(ri);
-
-    RiPos pos = ri->token.pos;
-    RiNode* node = NULL;
-    switch (ri->token.kind)
-    {
-        case RiToken_Keyword_Variable:
-            node = ri_parse_decl_(ri);
-            if (!node) {
-                return NULL;
-            }
-
-            // Assignment.
-            switch (ri_lex_next_if_(ri, RiToken_Eq))
-            {
-                case RiLexNextIf_Match: {
-                    RiNode* right = ri_parse_expr_(ri);
-                    if (right) {
-                        node = ri_make_st_assign_(ri, pos, RiNode_St_Assign, node, right);
-                    }
-                } break;
-                // case RiLexNextIf_NoMatch: {
-                //     if (node->decl.spec->spec.var.type->kind == RiNode_Spec_Type_Infer) {
-                //         ri_error_set_unexpected_token_(ri, &ri->token);
-                //         return NULL;
-                //     }
-                // }
-                case RiLexNextIf_Error:
-                    // Assumes node == NULL.
-                    break;
-            }
-            break;
-
-        default:
-            node = ri_parse_st_expr_(ri);
-            break;
-    }
-
-    return node;
-}
-
-static RiNode*
-ri_parse_st_(Ri* ri, RiNodeKind scope_kind)
-{
-    RI_CHECK(ri_is_in(scope_kind, RiNode_Scope));
-    ri_error_check_(ri);
-
-    RiNode* node = NULL;
-    switch (ri->token.kind)
-    {
-        case RiToken_Keyword_Type:
-            node = ri_parse_decl_(ri);
-            if (!node) {
-                return NULL;
-            }
-            if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_Error) {
-                return NULL;
-            }
-            break;
-
-        case RiToken_Keyword_Func:
-            node = ri_parse_decl_(ri);
-            if (!node) {
-                return NULL;
-            }
-            RI_CHECK(node->kind == RiNode_Decl);
-            if (node->decl.spec->kind == RiNode_Spec_Func) {
-                if (ri_lex_next_if_(ri, RiToken_Semicolon) == RiLexNextIf_Error) {
-                    return NULL;
-                }
-            } else if (!ri_lex_expect_token_(ri, RiToken_Semicolon)) {
-                return NULL;
-            }
-            break;
-
-        case RiToken_Keyword_Return:
-            node = ri_parse_st_return_(ri);
-            break;
-
-        case RiToken_Keyword_If:
-            node = ri_parse_st_if_(ri);
-            break;
-
-        case RiToken_Keyword_For:
-            node = ri_parse_st_for_(ri);
-            break;
-
-        case RiToken_Keyword_Switch:
-            node = ri_parse_st_switch_(ri);
-            break;
-
-        case RiToken_Keyword_Case:
-            if (scope_kind != RiNode_Scope_Switch_Body) {
-                ri_error_set_unexpected_token_(ri, &ri->token);
-                return NULL;
-            }
-            node = ri_parse_st_switch_case_(ri);
-            break;
-
-        case RiToken_Keyword_Default:
-            if (scope_kind != RiNode_Scope_Switch_Body) {
-                ri_error_set_unexpected_token_(ri, &ri->token);
-                return NULL;
-            }
-            node = ri_parse_st_switch_default_(ri);
-            break;
-
-        case RiToken_Keyword_Break:
-            if (scope_kind != RiNode_Scope_Switch_Body && scope_kind != RiNode_Scope_For_Body) {
-                ri_error_set_unexpected_token_(ri, &ri->token);
-                return NULL;
-            }
-            RiPos pos = ri->token.pos;
-            if (ri_lex_next_(ri)) {
-                node = ri_make_st_break_(ri, pos);
-                if (ri_lex_expect_token_(ri, RiToken_Semicolon)) {
-                    break;
-                }
-            }
-            return NULL;
-
-        // TODO: Merge with `break`?
-        // TODO: Continue/break is allowed if one of the parents is switch or for.
-        // - We can do this with counted allow_break++, allow_continue++.
-        // - We will also need to assign break and continue with the correct parent.
-        case RiToken_Keyword_Continue: {
-            if (scope_kind != RiNode_Scope_For_Body) {
-                ri_error_set_unexpected_token_(ri, &ri->token);
-                return NULL;
-            }
-            RiPos pos = ri->token.pos;
-            if (ri_lex_next_(ri)) {
-                node = ri_make_st_continue_(ri, pos);
-                if (ri_lex_expect_token_(ri, RiToken_Semicolon)) {
-                    break;
-                }
-            }
-        } return NULL;
-
-        default:
-            node = ri_parse_st_simple_(ri);
-            if (!node || !ri_lex_expect_token_(ri, RiToken_Semicolon)) {
-                return NULL;
-            }
-            break;
-    }
-
-    // RI_CHECK(node);
-    return node;
-}
-
-static RiNode*
-ri_parse_scope_(Ri* ri, RiTokenKind end, RiNodeKind scope_kind)
-{
-    RI_CHECK(ri_is_in(scope_kind, RiNode_Scope));
-    RiNode* scope = ri_make_scope_(ri, ri->token.pos, scope_kind);
-    ri->scope = scope;
-    while (ri->token.kind != end) {
-        RiNode* statement = ri_parse_st_(ri, scope_kind);
-        if (statement == NULL) {
-            return NULL;
-        }
-        array_push(&ri->scope->scope.statements, statement);
-    }
-
-    if (end == RiToken_RB && !ri_lex_next_(ri)) {
-        return NULL;
-    }
-    RI_ASSERT(ri->scope == scope);
-    ri->scope = scope->owner;
-
-    return scope;
-}
-
-RiNode*
-ri_parse(Ri* ri, String stream, String path)
-{
-    ri_error_check_(ri);
-
-    array_clear(&ri->path);
-    chararray_push(&ri->path, path);
-
-    if (!ri_stream_set_(ri, stream)) {
-        return NULL;
-    }
-
-    RiNode* block = ri_parse_scope_(ri, RiToken_End, RiNode_Scope_Module);
-
-    return block;
-}
-
-//
 // AST Walker
 //
 
@@ -2460,6 +570,8 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 }
             }
             return RiWalk_Continue;
+        case RiNode_Spec_Module:
+            return RiWalk_Continue;
         case RiNode_Spec_Type_Infer:
             return RiWalk_Continue;
         case RiNode_Value_Var:
@@ -2470,15 +582,23 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
             return ri_walk_(ri, &n->value.spec, f, context);
         case RiNode_Value_Constant:
             return ri_walk_(ri, &n->value.constant.type, f, context);
+        case RiNode_Value_Module:
+            return ri_walk_(ri, &n->value.spec, f, context);
 
         case RiNode_Expr_Cast:
         case RiNode_Expr_Call:
-            if (ri_walk_(ri, &n->call.func, f, context)) {
+            if (ri_walk_(ri, &n->call.func, f, context) != RiWalk_Error) {
                 array_each(&n->call.arguments, &it) {
                     if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
                         return RiWalk_Error;
                     }
                 }
+                return RiWalk_Continue;
+            }
+            return RiWalk_Error;
+        
+        case RiNode_Expr_Binary_Select:
+            if (ri_walk_(ri, &n->binary.argument0, f, context) != RiWalk_Error && ri_walk_(ri, &n->binary.argument1, f, context)) {
                 return RiWalk_Continue;
             }
             return RiWalk_Error;
@@ -2592,7 +712,7 @@ static RI_RESOLVE_F_(ri_resolve_unary_)
         } else {
             ri_error_set_(ri, RiError_Type, n->pos, "unary %s is not defined for %S",
                 RI_OP_NAMES_[n->kind],
-                ri->node_meta[arg_type->kind].node->spec.id
+                ri->nodes[arg_type->kind]->spec.id
             );
             return false;
         }
@@ -2603,7 +723,7 @@ static RI_RESOLVE_F_(ri_resolve_unary_)
         } else {
             ri_error_set_(ri, RiError_Type, n->pos, "%s is not defined for %s",
                 RI_OP_NAMES_[n->kind],
-                ri->node_meta[arg_type->kind].node->spec.id
+                ri->nodes[arg_type->kind]->spec.id
             );
             return false;
         }
@@ -2614,7 +734,7 @@ static RI_RESOLVE_F_(ri_resolve_unary_)
         } else {
             ri_error_set_(ri, RiError_Type, n->pos, "%s is not defined for %s",
                 RI_OP_NAMES_[n->kind],
-                ri->node_meta[arg_type->kind].node->spec.id
+                ri->nodes[arg_type->kind]->spec.id
             );
             return false;
         }
@@ -2870,18 +990,25 @@ static RIWALK_F(ri_resolve_decl_)
     }
 
     spec->spec.state = RiSpec_Resolving;
-    if (ri_walk_(ri, &spec, &ri_resolve_node_, context) == RiWalk_Error) {
+    if (spec->kind == RiNode_Spec_Module) {
+        RiModule* module = ri_import(ri, spec->spec.id);
+        if (module == NULL) {
+            ri->error.pos = decl->pos;
+            return RiWalk_Error;
+        }
+        spec->spec.module = module->node;
+    } else if (ri_walk_(ri, &spec, &ri_resolve_node_, context) == RiWalk_Error) {
         return RiWalk_Error;
     }
     spec->spec.state = RiSpec_Resolved;
     RI_CHECK(decl->decl.spec == spec);
 
-    return true;
+    return RiWalk_Continue;
 }
 
 // 1. Takes identifier node
 // 2. Looks up corresponding declaration in scope and parents.
-// 3. If the decalration is not resolved, walks over the declaration node to resolve it's identifiers.
+// 3. If the declaration is not resolved, walks over the declaration node to resolve it's identifiers.
 // 4. Mutates identifier node to a spec taken from the resolved declaration.
 //
 static RIWALK_F(ri_resolve_identifier_)
@@ -2936,6 +1063,11 @@ static RIWALK_F(ri_resolve_identifier_)
             // id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.func.type);
             break;
 
+        case RiNode_Spec_Module:
+            id->kind = RiNode_Value_Module;
+            id->value.spec = decl->decl.spec;
+            break;
+
         default:
             RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type));
             id->kind = RiNode_Value_Type;
@@ -2946,6 +1078,24 @@ static RIWALK_F(ri_resolve_identifier_)
     *node = id;
 
     return RiWalk_Continue;
+}
+
+bool ri_resolve_select_(Ri* ri, RiNode* node, void* context)
+{
+    __debugbreak();
+    if (ri_walk_(ri, &n->binary.argument0, &ri_resolve_node_, context) == RiWalk_Error) {
+        return RiWalk_Error;
+    }
+    RiNode* left = n->binary.argument0;
+    switch (left->kind)
+    {
+        case RiNode_Spec_Module:
+
+            break;
+        default:
+            RI_TODO;
+            break;
+    }
 }
 
 static RIWALK_F(ri_resolve_node_)
@@ -2960,6 +1110,12 @@ static RIWALK_F(ri_resolve_node_)
     {
         case RiNode_Id:
             return ri_resolve_identifier_(ri, node, context);
+
+        case RiNode_Expr_Binary_Select: {
+            if (ri_resolve_select_(ri, node, context) == false) {
+                return RiWalk_Error;
+            }
+        } return RiWalk_Skip;
 
         case RiNode_Expr_Call: {
             if (ri_walk_(ri, &n->call.func, &ri_resolve_node_, context) == RiWalk_Error) {
@@ -2991,13 +1147,13 @@ static RIWALK_F(ri_resolve_node_)
     return RiWalk_Continue;
 }
 
-RiNode*
-ri_resolve(Ri* ri, RiNode* node)
+static bool
+ri_resolve_(Ri* ri, RiNode* node)
 {
     if (ri_walk_(ri, &node, &ri_resolve_node_, 0) == RiWalk_Error) {
-        return NULL;
+        return false;
     }
-    return node;
+    return true;
 }
 
 //
@@ -3034,10 +1190,10 @@ ri_type_patch_get_untyped_default_type_(Ri* ri, RiNodeKind untyped)
     switch (untyped)
     {
         case RiNode_Spec_Type_Number_None_Int:
-            return ri->node_meta[RiNode_Spec_Type_Number_Int64].node;
+            return ri->nodes[RiNode_Spec_Type_Number_Int64];
             break;
         case RiNode_Spec_Type_Number_None_Real:
-            return ri->node_meta[RiNode_Spec_Type_Number_Float32].node;
+            return ri->nodes[RiNode_Spec_Type_Number_Float32];
             break;
     }
     RI_UNREACHABLE;
@@ -3085,8 +1241,8 @@ ri_type_patch_expr_cast_(Ri* ri, RiNode* node)
     // } else {
     //     // TODO: Would fail on Func type.
     //     ri_error_set_(ri, RiError_Type, node->pos, "cannot cast from %S to %S",
-    //         ri->node_meta[type_from_kind].node->spec.id,
-    //         ri->node_meta[type_to_kind].node->spec.id
+    //         ri->nodes[type_from_kind]->spec.id,
+    //         ri->nodes[type_to_kind]->spec.id
     //     );
     //     return NULL;
     // }
@@ -3097,7 +1253,7 @@ ri_type_patch_expr_cast_(Ri* ri, RiNode* node)
 static RiNode*
 ri_type_patch_node_(Ri* ri, RiNode* node)
 {
-    RiNode* type_none = ri->node_meta[RiNode_Spec_Type_None].node;
+    RiNode* type_none = ri->nodes[RiNode_Spec_Type_None];
 
     if (ri_is_in(node->kind, RiNode_Expr_Binary_Comparison))
     {
@@ -3145,7 +1301,7 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
         }
 
         // We always return bool.
-        return ri->node_meta[RiNode_Spec_Type_Number_Bool].node;
+        return ri->nodes[RiNode_Spec_Type_Number_Bool];
     }
     else if (ri_is_in(node->kind, RiNode_Expr_Binary))
     {
@@ -3205,12 +1361,12 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
             case RiNode_Decl: {
                 switch (node->decl.spec->kind) {
                     case RiNode_Spec_Func: {
-                        RiNode* f = ri->func;
-                        ri->func = node->decl.spec;
+                        RiNode* f = ri->module->func;
+                        ri->module->func = node->decl.spec;
                         if (!ri_type_patch_node_(ri, node->decl.spec->spec.func.scope)) {
                             return NULL;
                         }
-                        ri->func = f;
+                        ri->module->func = f;
                     } break;
                     case RiNode_Spec_Var:
                         break;
@@ -3266,7 +1422,7 @@ ri_type_patch_node_(Ri* ri, RiNode* node)
             } break;
 
             case RiNode_St_Return: {
-                RiNode* func_type = ri->func->spec.func.type;
+                RiNode* func_type = ri->module->func->spec.func.type;
                 RI_CHECK(func_type->kind == RiNode_Spec_Type_Func);
                 RiNode* func_output_type = 0;
                 if (func_type->spec.type.func.outputs.count > 0) {
@@ -3381,21 +1537,124 @@ ri_type_patch(Ri* ri, RiNode* node)
 //
 //
 
-RiNode*
-ri_build(Ri* ri, String stream, String path)
+void
+rimodule_purge_(RiModule* module)
 {
-    RiNode* module = ri_make_node_(ri, (RiPos){0}, RiNode_Module);
-    RiNode* scope = ri_parse(ri, stream, path);
-    if (scope) {
-        scope = ri_resolve(ri, scope);
-        if (scope) {
-            if (ri_type_patch(ri, scope)) {
-                module->module.scope = scope;
-                return module;
-            }
+    arena_purge(&module->arena);
+    array_purge(&module->pending);
+}
+
+void
+rimodule_init_(RiModule* module, String path, String id)
+{
+    memset(module, 0, sizeof(RiModule));
+    arena_init(&module->arena, MEGABYTES(1));
+
+    module->id = id;
+
+    String path_dir = ri_path_get_dir_(path);
+    module->path.count = path_dir.count;
+    module->path.items = arena_push_nt(&module->arena, char, path_dir.count);
+    memcpy(module->path.items, path_dir.items, path_dir.count);
+}
+
+//
+//
+//
+
+bool
+ri_load(Ri* ri, String id, CharArray* path, ByteArray* stream)
+{
+    array_clear(stream);
+
+    int i = 0;
+    for (; i < ri->paths.count; ++i) {
+        array_clear(path);
+        chararray_push_f(path, "%S/%S.ri", ri->paths.items[i], id);
+        RI_LOG("scanning %S", path->slice);
+        array_zero_term(path);
+        if (file_read(stream, path->items, NULL)) {
+            return true;
         }
     }
-    return NULL;
+
+    // NOTE: The position is meant to be patched from caller.
+    ri_error_set_(ri, RiError_ModuleNotFound, RI_POS_OUTSIDE, "unable to load '%S' on paths:", id);
+    for (i = 0; i < ri->paths.count; ++i) {
+        chararray_push_f(&ri->error.message, "\n- '%S'", ri->paths.items[i]);
+    };
+    return false;
+}
+
+RiModule*
+ri_module(Ri* ri, String path, String id)
+{
+    RiModule* module = arena_push_t(&ri->arena_, RiModule);
+    rimodule_init_(module, path, id);
+    return module;
+}
+
+bool
+ri_parse(Ri* ri, RiModule* module, ByteSlice stream)
+{
+    RiModule* previous = ri->module;
+    ri->module = module;
+
+    RiNode* node = ri_make_node_(&ri->module->arena, ri->scope, (RiPos){0}, RiNode_Module);
+    module->node = node;
+
+    RiNode* scope = ri_parse_(ri, stream);
+    if (scope == NULL) {
+        return false;
+    }
+    ri->module = previous;
+
+    return true;
+}
+
+bool
+ri_resolve(Ri* ri, RiModule* module)
+{
+    RiModule* previous = ri->module;
+    ri->module = module;
+
+    if (!ri_resolve_(ri, module->node)) {
+        return false;
+    }
+
+    if (!ri_type_patch(ri, module->node)) {
+        return false;
+    }
+
+    ri->module = previous;
+
+    return true;
+}
+
+RiModule*
+ri_import(Ri* ri, String id)
+{
+    CharArray path = {0};
+    ByteArray stream = {0};
+
+    if (!ri_load(ri, id, &path, &stream)) {
+        return NULL;
+    }
+
+    RiModule* module = ri_module(ri, path.slice, id);
+    array_purge(&path);
+
+    if (!ri_parse(ri, module, stream.slice)) {
+        module = NULL;
+    }
+    
+    array_purge(&stream);
+    
+    if (!ri_resolve(ri, module)) {
+        module = NULL;
+    }
+
+    return module;
 }
 
 //
@@ -3408,7 +1667,7 @@ ri_init(Ri* ri, void* host)
     // RI_LOG_DEBUG("node %d bytes", sizeof(RiNode));
 
     memset(ri, 0, sizeof(Ri));
-    arena_init(&ri->arena, MEGABYTES(1));
+    arena_init(&ri->arena_, MEGABYTES(1));
     intern_init(&ri->intern);
 
     ri->id_func        = ri_make_id_(ri, S("func")).items;
@@ -3418,6 +1677,8 @@ ri_init(Ri* ri, void* host)
     ri->id_struct      = ri_make_id_(ri, S("struct")).items;
     ri->id_union       = ri_make_id_(ri, S("union")).items;
     ri->id_enum        = ri_make_id_(ri, S("enum")).items;
+
+    ri->id_import      = ri_make_id_(ri, S("import")).items;
 
     ri->id_return      = ri_make_id_(ri, S("return")).items;
     ri->id_if          = ri_make_id_(ri, S("if")).items;
@@ -3436,37 +1697,35 @@ ri_init(Ri* ri, void* host)
 
     ri->id_underscore  = ri_make_id_(ri, S("_")).items;
 
-    ri->scope = ri_make_scope_(ri, RI_POS_OUTSIDE, RiNode_Scope_Root);
+    ri->scope = ri_make_scope_(&ri->arena_, 0, RI_POS_OUTSIDE, RiNode_Scope_Root);
 
-    ri->node_meta[RiNode_Spec_Type_None].node =
-        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_None);
-    ri->node_meta[RiNode_Spec_Type_None].node->spec.id = ri_make_id_(ri, S("none"));
-    ri_add_type_identity_(ri, ri->node_meta[RiNode_Spec_Type_None].node);
+    ri->nodes[RiNode_Spec_Type_None] =
+        ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_None);
+    ri->nodes[RiNode_Spec_Type_None]->spec.id = ri_make_id_(ri, S("none"));
+    ri_add_type_identity_(ri, ri->nodes[RiNode_Spec_Type_None]);
 
-    ri->node_meta[RiNode_Spec_Type_Number_None_Int].node =
-        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Int);
-    ri->node_meta[RiNode_Spec_Type_Number_None_Int].node->spec.id = ri_make_id_(ri, S("untyped-int"));
+    ri->nodes[RiNode_Spec_Type_Number_None_Int] =
+        ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Int);
+    ri->nodes[RiNode_Spec_Type_Number_None_Int]->spec.id = ri_make_id_(ri, S("untyped-int"));
 
-    ri->node_meta[RiNode_Spec_Type_Number_None_Real].node =
-        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Real);
-    ri->node_meta[RiNode_Spec_Type_Number_None_Real].node->spec.id = ri_make_id_(ri, S("untyped-real"));
+    ri->nodes[RiNode_Spec_Type_Number_None_Real] =
+        ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Real);
+    ri->nodes[RiNode_Spec_Type_Number_None_Real]->spec.id = ri_make_id_(ri, S("untyped-real"));
 
-    ri->node_meta[RiNode_Spec_Type_Infer].node =
-        ri_make_node_(ri, RI_POS_OUTSIDE, RiNode_Spec_Type_Infer);
-    ri->node_meta[RiNode_Spec_Type_Infer].node->spec.id = ri_make_id_(ri, S("infer"));
+    ri->nodes[RiNode_Spec_Type_Infer] =
+        ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_Infer);
+    ri->nodes[RiNode_Spec_Type_Infer]->spec.id = ri_make_id_(ri, S("infer"));
 
     #define DECL_TYPE(Name, Type) { \
         String name = ri_make_id_(ri, S(Name)); \
-        RiNode* spec = ri_make_spec_type_number_(ri, \
+        RiNode* spec = ri_make_spec_type_number_(&ri->arena_, ri->scope, \
             RI_POS_OUTSIDE, \
             name, \
             RiNode_Spec_Type_ ## Type \
         ); \
-        ri->node_meta[RiNode_Spec_Type_ ## Type] = (RiNodeMeta){ \
-            .node = spec, \
-        }; \
+        ri->nodes[RiNode_Spec_Type_ ## Type] = spec; \
         ri_add_type_identity_(ri, spec); \
-        ri_scope_set_(ri, ri_make_decl_(ri, spec->pos, spec)); \
+        ri_scope_set_(ri, ri->scope, ri_make_decl_(&ri->arena_, ri->scope, spec->pos, spec)); \
     }
 
         DECL_TYPE("bool",       Number_Bool);
@@ -3483,12 +1742,12 @@ ri_init(Ri* ri, void* host)
 
     #undef DECL_TYPE
 
-    ri_scope_set_(ri,
-        ri_make_decl_(ri, RI_POS_OUTSIDE,
-            ri_make_spec_constant_(ri,
+    ri_scope_set_(ri, ri->scope,
+        ri_make_decl_(&ri->arena_, ri->scope, RI_POS_OUTSIDE,
+            ri_make_spec_constant_(&ri->arena_, ri->scope,
                 RI_POS_OUTSIDE,
                 ri_make_id_(ri, S("host")),
-                ri->node_meta[RiNode_Spec_Type_Number_UInt64].node,
+                ri->nodes[RiNode_Spec_Type_Number_UInt64],
                 (RiLiteral){ .pointer = host }
             )
         )
@@ -3499,8 +1758,11 @@ void
 ri_purge(Ri* ri)
 {
     RI_LOG_DEBUG("types %d", ri->types.count);
-    RI_LOG_DEBUG("memory %d bytes", ri->arena.head);
-    RI_LOG_DEBUG("nodes %d", ri->index);
-    arena_purge(&ri->arena);
+    RiModule* it;
+    array_each(&ri->modules, &it) {
+        rimodule_purge_(it);
+    }
     intern_purge(&ri->intern);
+    array_purge(&ri->types);
+    arena_purge(&ri->arena_);
 }
