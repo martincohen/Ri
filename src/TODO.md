@@ -13,6 +13,8 @@ See README.md for high-level tasks.
 
 ## Next
 
+- TBD: No pointer arithmetic, only slices?
+
 ### VM
 
 GOAL: Compiles into three-address code, interprets three-address code in a straightforward manner. (baseline performance)

@@ -69,7 +69,7 @@ ri_error_log(Ri* ri)
     if (ri->error.kind != RiError_None)
     {
         CharArray message = {0};
-        ri_error_format_(&ri, &message);
+        ri_error_format_(ri, &message);
         RI_LOG("%S", message.slice);
         array_purge(&message);
     }
@@ -332,7 +332,7 @@ ri_retof_(Ri* ri, RiNode* node)
         switch (node->kind)
         {
             // Ct
-            
+
             case RiNode_Spec_Var:
                 return ri_get_spec_(ri, node->spec.var.type);
             case RiNode_Spec_Func:
@@ -596,7 +596,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return RiWalk_Continue;
             }
             return RiWalk_Error;
-        
+
         case RiNode_Expr_Binary_Select:
             if (ri_walk_(ri, &n->binary.argument0, f, context) != RiWalk_Error && ri_walk_(ri, &n->binary.argument1, f, context)) {
                 return RiWalk_Continue;
@@ -1082,11 +1082,26 @@ static RIWALK_F(ri_resolve_identifier_)
 
 bool ri_resolve_select_(Ri* ri, RiNode* node, void* context)
 {
+    RI_CHECK(node->kind == RiNode_Expr_Binary_Select);
+
+    // lib.variable.x.y
+    // (expr-select
+    //     (expr-select
+    //         (expr-select
+    //             (id 'lib')
+    //             (id 'variable')
+    //         )
+    //         (id 'x')
+    //     )
+    //     (id 'y')
+    // )
+
     __debugbreak();
-    if (ri_walk_(ri, &n->binary.argument0, &ri_resolve_node_, context) == RiWalk_Error) {
-        return RiWalk_Error;
+    if (ri_walk_(ri, &node->binary.argument0, &ri_resolve_node_, context) == RiWalk_Error) {
+        return false;
     }
-    RiNode* left = n->binary.argument0;
+
+    RiNode* left = node->binary.argument0;
     switch (left->kind)
     {
         case RiNode_Spec_Module:
@@ -1096,6 +1111,8 @@ bool ri_resolve_select_(Ri* ri, RiNode* node, void* context)
             RI_TODO;
             break;
     }
+
+    return true;
 }
 
 static RIWALK_F(ri_resolve_node_)
@@ -1112,7 +1129,7 @@ static RIWALK_F(ri_resolve_node_)
             return ri_resolve_identifier_(ri, node, context);
 
         case RiNode_Expr_Binary_Select: {
-            if (ri_resolve_select_(ri, node, context) == false) {
+            if (ri_resolve_select_(ri, n, context) == false) {
                 return RiWalk_Error;
             }
         } return RiWalk_Skip;
@@ -1607,6 +1624,7 @@ ri_parse(Ri* ri, RiModule* module, ByteSlice stream)
     if (scope == NULL) {
         return false;
     }
+    node->module.scope = scope;
     ri->module = previous;
 
     return true;
@@ -1647,9 +1665,9 @@ ri_import(Ri* ri, String id)
     if (!ri_parse(ri, module, stream.slice)) {
         module = NULL;
     }
-    
+
     array_purge(&stream);
-    
+
     if (!ri_resolve(ri, module)) {
         module = NULL;
     }
