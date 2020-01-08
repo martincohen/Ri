@@ -1,0 +1,28 @@
+{
+	var i32 int32 = 1;
+	i32 = 2;
+	var i64 int64 = 1;
+	i64 = 2;
+}
+
+{
+	var i32 int32 = 1.0;
+	i32 = 2.0;
+	var i64 int64 = 1.0;
+	i64 = 2.0;
+}
+
+// Allowing cast from untyped-int to float*
+{
+	var f32 float32 = 1;
+	f32 = 2;
+	var f64 float64 = 1;
+	f64 = 2;
+}
+
+{
+	var f32 float32 = 1.0;
+	f32 = 2.0;
+	var f64 float64 = 1.0;
+	f64 = 2.0;
+}

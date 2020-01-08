@@ -48,6 +48,7 @@ ri_dump_block_(RiDump_* D, RiNode* node, const char* block)
 
 static const char* RI_NODEKIND_NAMES_[RiNode_COUNT__] = {
     [RiNode_Value_Constant] = "const",
+    [RiNode_Expr_Select] = "expr-select",
     [RiNode_Expr_Cast] = "expr-cast",
     [RiNode_Expr_Unary_Positive] = "expr-positive",
     [RiNode_Expr_Unary_Negative] = "expr-negative",
@@ -69,7 +70,6 @@ static const char* RI_NODEKIND_NAMES_[RiNode_COUNT__] = {
     [RiNode_Expr_Binary_Numeric_Bitwise_BShR] = "expr-bshr",
     [RiNode_Expr_Binary_Numeric_Boolean_And] = "expr-and",
     [RiNode_Expr_Binary_Numeric_Boolean_Or] = "expr-or",
-    [RiNode_Expr_Binary_Select] = "expr-select",
     [RiNode_Expr_Binary_Comparison_Lt] = "expr-lt",
     [RiNode_Expr_Binary_Comparison_Gt] = "expr-gt",
     [RiNode_Expr_Binary_Comparison_LtEq] = "expr-lt-eq",
@@ -102,7 +102,7 @@ ri_dump_(RiDump_* D, RiNode* node)
         map_put(&D->logged, (ValueScalar){ .ptr = node }, (ValueScalar){ .i32 = 1 });
     }
 
-    if (ri_is_in(node->kind, RiNode_Expr_Binary) || ri_is_in(node->kind, RiNode_St_Assign)) {
+    if (ri_is_in(node->kind, RiNode_Expr_Binary) || ri_is_in(node->kind, RiNode_St_Assign) || node->kind == RiNode_Expr_Select) {
         riprinter_print(&D->printer, "(%s\n\t", RI_NODEKIND_NAMES_[node->kind]);
         ri_dump_(D, node->binary.argument0);
         ri_dump_(D, node->binary.argument1);
@@ -112,7 +112,20 @@ ri_dump_(RiDump_* D, RiNode* node)
         ri_dump_(D, node->unary.argument);
         riprinter_print(&D->printer, "\b)\n");
     } else if (ri_is_in(node->kind, RiNode_Spec_Type_Number)) {
-        riprinter_print(&D->printer, "(spec-type-number '%S')\n", node->spec.id);
+        switch (node->kind)
+        {
+            case RiNode_Spec_Type_Number_None_Int:
+                riprinter_print(&D->printer, "(spec-type-number 'untyped-int')\n");
+                break;
+            case RiNode_Spec_Type_Number_None_Real:
+                riprinter_print(&D->printer, "(spec-type-number 'untyped-real')\n");
+                break;
+            default:
+                riprinter_print(&D->printer, "(spec-type-number ");
+                ri_type_get_title_(node, D->printer.out);
+                riprinter_print(&D->printer, ")\n");
+                break;
+        }
     } else if (ri_is_in(node->kind, RiNode_Scope)) {
         riprinter_print(&D->printer, "(scope\n\t");
         if (node->scope.decl.count) {
@@ -138,32 +151,31 @@ ri_dump_(RiDump_* D, RiNode* node)
             } break;
 
             case RiNode_Decl: {
-                riprinter_print(&D->printer, "(decl\n\t");
+                riprinter_print(&D->printer, "(decl '%S'\n\t", node->decl.id);
                 ri_dump_(D, node->decl.spec);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
-            case RiNode_Id: {
-                riprinter_print(&D->printer, "(id '%S')\n", node->id.name);
+            case RiNode_Expr_Id: {
+                riprinter_print(&D->printer, "(expr-id '%S')\n", node->id.name);
             } break;
 
-            case RiNode_Spec_Type_Number_None_Int: {
-                riprinter_print(&D->printer, "(spec-type-untyped-int)\n");
-            } break;
-
-            case RiNode_Spec_Type_Number_None_Real: {
-                riprinter_print(&D->printer, "(spec-type-untyped-real)\n");
-            } break;
-
-            case RiNode_Expr_Call: {
-                riprinter_print(&D->printer, "(expr-call\n\t");
-                ri_dump_(D, node->call.func);
-                ri_dump_slice_(D, &node->call.arguments.slice, "arguments");
+            case RiNode_Expr_Field: {
+                riprinter_print(&D->printer, "(expr-field\n\t");
+                ri_dump_(D, node->field.parent);
+                ri_dump_(D, node->field.child);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
             case RiNode_Expr_Cast: {
                 riprinter_print(&D->printer, "(expr-cast\n\t");
+                ri_dump_slice_(D, &node->call.arguments.slice, "arguments");
+                riprinter_print(&D->printer, "\b)\n");
+            } break;
+
+            case RiNode_Expr_Call: {
+                riprinter_print(&D->printer, "(expr-call\n\t");
+                ri_dump_(D, node->call.func);
                 ri_dump_slice_(D, &node->call.arguments.slice, "arguments");
                 riprinter_print(&D->printer, "\b)\n");
             } break;
@@ -228,9 +240,16 @@ ri_dump_(RiDump_* D, RiNode* node)
             } break;
 
             case RiNode_Value_Func:
-            case RiNode_Value_Type:
             case RiNode_Value_Var: {
                 riprinter_print(&D->printer, "(%s\n\t", RI_NODEKIND_NAMES_[node->kind]);
+                ri_dump_(D, node->value.spec);
+                riprinter_print(&D->printer, "\b)\n");
+            } break;
+
+            case RiNode_Value_Type: {
+                riprinter_print(&D->printer, "(%s ", RI_NODEKIND_NAMES_[node->kind]);
+                ri_type_get_title_(node, D->printer.out);
+                riprinter_print(&D->printer, "\n\t");
                 ri_dump_(D, node->value.spec);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
@@ -274,22 +293,28 @@ ri_dump_(RiDump_* D, RiNode* node)
             } break;
 
             case RiNode_Spec_Var: {
-                riprinter_print(&D->printer, "(spec-var '%S'\n\t", node->spec.id);
+                riprinter_print(&D->printer, "(spec-var\n\t");
                 ri_dump_(D, node->spec.var.type);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
             case RiNode_Spec_Func: {
-                riprinter_print(&D->printer, "(spec-func '%S'\n\t", node->spec.id);
+                riprinter_print(&D->printer, "(spec-func\n\t");
                 ri_dump_(D, node->spec.func.type);
                 ri_dump_(D, node->spec.func.scope);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
             case RiNode_Spec_Type_Func: {
-                riprinter_print(&D->printer, "(spec-type-func '%S'\n\t", node->spec.id);
+                riprinter_print(&D->printer, "(spec-type-func\n\t");
                 ri_dump_slice_(D, &node->spec.type.func.inputs.slice, "in");
                 ri_dump_slice_(D, &node->spec.type.func.outputs.slice, "out");
+                riprinter_print(&D->printer, "\b)\n");
+            } break;
+
+            case RiNode_Spec_Type_Struct: {
+                riprinter_print(&D->printer, "(spec-type-struct\n\t");
+                ri_dump_slice_(D, &node->spec.type.compound.scope->scope.statements.slice, "fields");
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
@@ -298,7 +323,7 @@ ri_dump_(RiDump_* D, RiNode* node)
             } break;
 
             case RiNode_Spec_Module: {
-                riprinter_print(&D->printer, "(spec-module '%S')\n", node->spec.id);
+                riprinter_print(&D->printer, "(spec-module)\n");
             } break;
 
             default: {

@@ -1,4 +1,5 @@
 var variable = 1;
+type MyInt int64;
 func function() int32 {
 	return 2;
 }

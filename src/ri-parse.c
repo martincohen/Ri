@@ -5,7 +5,7 @@ static const struct {
     RiNodeKind binary;
     RiNodeKind assign;
 } RI_TOKEN_TO_OP_[RiToken_COUNT__] = {
-    [RiToken_Dot]           = { .binary = RiNode_Expr_Binary_Select },
+    [RiToken_Dot]           = { .binary = RiNode_Expr_Select },
     [RiToken_Plus]          = { .unary = RiNode_Expr_Unary_Positive,
                                 .binary = RiNode_Expr_Binary_Numeric_Arithmetic_Add },
     [RiToken_Minus]         = { .unary = RiNode_Expr_Unary_Negative,
@@ -531,8 +531,29 @@ ri_parse_string_(const RiToken token, CharArray* buffer)
 }
 
 //
+// Semicolons
+//
+
+bool
+ri_parse_semicolons_(RiParser* parser)
+{
+    while (parser->token.kind == RiToken_Semicolon) {
+        if (!ri_lex_next_(parser)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+//
 // Expressions parser.
 //
+
+static RiNode* ri_parse_decl_(RiParser* parser);
+static RiNode* ri_parse_scope_(RiParser* parser, RiTokenKind end, RiNodeKind scope_kind);
+static RiNode* ri_parse_spec_func_type_(RiParser* parser);
+static RiNode* ri_parse_spec_func_or_func_type_(RiParser* parser);
+static RiNode* ri_parse_spec_struct_type_(RiParser* parser);
 
 static RiNode* ri_parse_expr_(RiParser* parser);
 static RiNode* ri_parse_expr_operator_(RiParser* parser, int precedence);
@@ -545,7 +566,7 @@ ri_parse_expr_operand_(RiParser* parser)
         case RiToken_Identifier: {
             RiToken token = parser->token;
             if (ri_lex_next_(parser)) {
-                return ri_make_identifier_(parser->arena, parser->scope, token.pos, token.id);
+                return ri_make_expr_id_(parser->arena, parser->scope, token.pos, token.id);
             }
             return NULL;
         } break;
@@ -598,6 +619,16 @@ ri_parse_expr_operand_(RiParser* parser)
             }
             return NULL;
         } break;
+
+        // Ct expressions.
+
+        case RiToken_Keyword_Struct: {
+            return ri_parse_spec_struct_type_(parser);
+        } break;
+
+        case RiToken_Keyword_Func: {
+            return ri_parse_spec_func_type_(parser);
+        } break;
     }
 
     ri_error_set_unexpected_token_(parser, &parser->token);
@@ -613,7 +644,7 @@ ri_parse_expr_dot_(RiParser* parser)
         if (ri_lex_next_(parser)) {
             RiNode* R = ri_parse_expr_operand_(parser);
             if (R) {
-                L = ri_make_expr_binary_(parser->arena, parser->scope, token.pos, RiNode_Expr_Binary_Select, L, R);
+                L = ri_make_expr_binary_(parser->arena, parser->scope, token.pos, RiNode_Expr_Select, L, R);
                 continue;
             }
         }
@@ -836,34 +867,42 @@ ri_parse_expr_(RiParser* parser)
 // Declarations parser.
 //
 
-static RiNode* ri_parse_decl_(RiParser* parser);
-static RiNode* ri_parse_scope_(RiParser* parser, RiTokenKind end, RiNodeKind scope_kind);
-static RiNode* ri_parse_spec_partial_func_type_(RiParser* parser, RiPos pos);
-
 static RiNode*
 ri_parse_type_(RiParser* parser)
 {
-    // TODO: Parse Id, or parse type spec (func..., struct...)
     RI_CHECK(parser->ri->error.kind == RiError_None);
 
     RiToken token = parser->token;
     switch (parser->token.kind)
     {
         case RiToken_Keyword_Func:
-            if (!ri_lex_next_(parser)) {
-                return NULL;
-            }
-            return ri_parse_spec_partial_func_type_(parser, token.pos);
+            return ri_parse_spec_func_type_(parser);
+        case RiToken_Keyword_Struct:
+            return ri_parse_spec_struct_type_(parser);
         case RiToken_Identifier:
-            if (!ri_lex_next_(parser)) {
-                return NULL;
-            }
-            return ri_make_identifier_(parser->arena, parser->scope, token.pos, token.id);
+            return ri_parse_expr_(parser);
+            // if (!ri_lex_next_(parser)) {
+            //     return NULL;
+            // }
+            // if (parser->token.kind == RiToken_Dot)
+            // while (parser->token.kind == RiToken_Dot) {
+            //     if (ri_lex_next_(parser) && parser->token.kind == RiToken_Identifier) {
+            //         if (ri_lex_next_(parser)) {
+            //             continue;
+            //         }
+            //     }
+            //     return NULL;
+            // }
+            // return ri_make_expr_id_(parser->arena, parser->scope, token.pos, token.id);
         default:
             ri_error_set_unexpected_token_(parser, &token);
             return NULL;
     }
 }
+
+//
+// Variables
+//
 
 static RiNode*
 ri_parse_decl_variable_(RiParser* parser)
@@ -893,15 +932,19 @@ ri_parse_decl_variable_(RiParser* parser)
         }
     }
 
-    RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, token.pos, token.id, type, RiVar_Local);
-    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, token.pos, spec);
+    RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, token.pos, type, RiVar_Local);
+    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, token.pos, token.id, spec);
     return decl;
 }
+
+//
+// Functions
+//
 
 static RiNode*
 ri_parse_decl_type_func_input_arg_(RiParser* parser)
 {
-    // <id> <type-spec>
+    // <id> <type-expr>
     // type-spec: <id> | _ | function(...)(...) | struct {...} ...
 
     // TODO: Implement short syntax for arguments of same type `function (a, b int32)`.
@@ -917,8 +960,8 @@ ri_parse_decl_type_func_input_arg_(RiParser* parser)
         return NULL;
     }
 
-    RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, token.pos, token.id, type, RiVar_Input);
-    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, token.pos, spec);
+    RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, token.pos, type, RiVar_Input);
+    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, token.pos, token.id, spec);
     return decl;
 }
 
@@ -957,8 +1000,8 @@ ri_parse_decl_type_func_output_arg_(RiParser* parser, RiNodeArray* outputs)
 
     RiNode* type = ri_parse_type_(parser);
     if (type) {
-        RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, type->pos, (String){0}, type, RiVar_Output);
-        RiNode* decl = ri_make_decl_(parser->arena, parser->scope, type->pos, spec);
+        RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, type->pos, type, RiVar_Output);
+        RiNode* decl = ri_make_decl_(parser->arena, parser->scope, type->pos, RI_ID_NULL, spec);
         array_push(outputs, decl);
         return true;
     }
@@ -981,7 +1024,7 @@ ri_parse_spec_partial_func_type_(RiParser* parser, RiPos pos)
         return NULL;
     }
 
-    RiNode* type = ri_make_spec_type_func_(parser->arena, parser->scope, pos, RI_ID_NULL, inputs, outputs);
+    RiNode* type = ri_make_spec_type_func_(parser->arena, parser->scope, pos, inputs, outputs);
     return type;
 }
 
@@ -1018,7 +1061,7 @@ ri_parse_spec_partial_func_(RiParser* parser, RiPos pos, String id)
             RiNode* it;
             array_each(&type->spec.type.func.inputs, &it) {
                 map_put(&scope->scope.map,
-                    (ValueScalar){ .ptr = it->decl.spec->spec.id.items },
+                    (ValueScalar){ .ptr = it->decl.id.items },
                     (ValueScalar){ .ptr = it }
                 );
             }
@@ -1039,9 +1082,21 @@ ri_parse_spec_partial_func_(RiParser* parser, RiPos pos, String id)
     RI_CHECK(parser->scope == scope);
     parser->scope = scope->owner;
 
-    RiNode* spec = ri_make_spec_func_(parser->arena, parser->scope, pos, id, type, scope_body ? scope : NULL);
-    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos, spec);
+    RiNode* spec = ri_make_spec_func_(parser->arena, parser->scope, pos, type, scope_body ? scope : NULL);
+    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos, id, spec);
     return decl;
+}
+
+static RiNode*
+ri_parse_spec_func_type_(RiParser* parser)
+{
+    RI_CHECK(parser->ri->error.kind == RiError_None);
+    RI_CHECK(parser->token.kind == RiToken_Keyword_Func);
+    RiToken token = parser->token;
+    if (!ri_lex_next_(parser)) {
+        return NULL;
+    }
+    return ri_parse_spec_partial_func_type_(parser, token.pos);
 }
 
 static RiNode*
@@ -1072,6 +1127,116 @@ ri_parse_spec_func_or_func_type_(RiParser* parser)
     return node;
 }
 
+//
+// Struct
+//
+
+static RiNode*
+ri_parse_spec_struct_type_(RiParser* parser)
+{
+    // struct { [
+    //   <expr> <expr>; |
+    //   <expr>;
+    // ]+ }
+
+    RI_CHECK(parser->ri->error.kind == RiError_None);
+    RI_CHECK(parser->token.kind == RiToken_Keyword_Struct);
+    RiPos pos_struct = parser->token.pos;
+    if (!ri_lex_next_(parser)) {
+        return NULL;
+    }
+
+    RiPos pos_scope = parser->token.pos;
+    if (!ri_lex_expect_token_(parser, RiToken_LB)) {
+        return NULL;
+    }
+
+    RiNode* scope = ri_make_scope_(parser->arena, parser->scope, pos_scope, RiNode_Scope_Struct);
+    parser->scope = scope;
+
+    for (;;)
+    {
+        if (parser->token.kind == RiToken_RB) {
+            if (!ri_lex_next_(parser)) {
+                return NULL;
+            }
+            break;
+        }
+
+        // TODO: type X ...;
+
+        RiToken token_id = parser->token;
+        RiNode* expr_id = ri_parse_expr_(parser);
+        if (!expr_id) {
+            return NULL;
+        }
+
+        String id = RI_ID_NULL;
+        RiNode* expr_type = NULL;
+        if (parser->token.kind != RiToken_Semicolon) {
+            // No semicolons expr1 should follow.
+            expr_type = ri_parse_expr_(parser);
+            if (!expr_type) {
+                return NULL;
+            }
+            // If we have type, we expect the expr_id to be just id.
+            // TODO: In future we'll need to be able to have an actual node as decl.id, since now it is only a String.
+            if (expr_id->kind != RiNode_Expr_Id) {
+                ri_error_set_unexpected_token_(parser, &token_id);
+                return NULL;
+            }
+            RI_CHECK(expr_id->kind == RiNode_Expr_Id);
+            id = expr_id->id.name;
+        } else {
+            expr_type = expr_id;
+            expr_id = NULL;
+            switch (expr_type->kind) {
+                case RiNode_Expr_Id:
+                    id = expr_type->id.name;
+                    break;
+                case RiNode_Expr_Select:
+                    RI_CHECK(expr_type->binary.argument1->kind == RiNode_Expr_Id);
+                    id = expr_type->binary.argument1->id.name;
+                    break;
+                case RiNode_Spec_Type_Struct:
+                    // Nested unnamed struct.
+                    break;
+                default:
+                    RI_UNREACHABLE;
+                    break;
+            }
+        }
+
+        if (id.items != NULL) {
+            RiNode* field = ri_make_spec_var_(parser->arena, parser->scope, expr_type->pos, expr_type, RiVar_Field);
+            RiNode* decl = ri_make_decl_(parser->arena, parser->scope, expr_id->pos, id, field);
+            if (!ri_scope_set_(parser->ri, scope, decl)) {
+                return NULL;
+            }
+            array_push(&scope->scope.statements, decl);
+        } else {
+            array_push(&scope->scope.statements, expr_type);
+        }
+
+        if (!ri_lex_expect_token_(parser, RiToken_Semicolon)) {
+            return NULL;
+        }
+        if (!ri_parse_semicolons_(parser)) {
+            return NULL;
+        }
+    }
+
+    RI_CHECK(parser->scope == scope);
+    parser->scope = scope->owner;
+
+    RiNode* spec = ri_make_spec_type_struct_(parser->arena, parser->scope, pos_struct, scope);
+    return spec;
+}
+
+//
+// Declarations
+//
+
 static RiNode*
 ri_parse_decl_type_(RiParser* parser)
 {
@@ -1091,10 +1256,8 @@ ri_parse_decl_type_(RiParser* parser)
     if (!type) {
         return NULL;
     }
-    RI_CHECK(type->spec.id.items == 0);
-    type->spec.id = id;
 
-    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos, type);
+    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos, id, type);
     return decl;
 }
 
@@ -1121,8 +1284,8 @@ ri_parse_decl_import_(RiParser* parser)
     String id = ri_make_id_(parser->ri, buffer.slice);
     array_purge(&buffer);
 
-    RiNode* spec = ri_make_spec_module_(parser->arena, parser->scope, string.pos, id);
-    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos_decl, spec);
+    RiNode* spec = ri_make_spec_module_(parser->arena, parser->scope, string.pos);
+    RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos_decl, id, spec);
     return decl;
 }
 
@@ -1169,6 +1332,7 @@ ri_parse_st_expr_(RiParser* parser)
         return NULL;
     }
 
+    RiPos pos = parser->token.pos;
     RiTokenKind token_kind = parser->token.kind;
     if (ri_tokenkind_in(token_kind, RiToken_Assign)) {
         if (!ri_lex_next_(parser)) {
@@ -1178,7 +1342,7 @@ ri_parse_st_expr_(RiParser* parser)
         if (!right) {
             return NULL;
         }
-        return ri_make_st_assign_(parser->arena, parser->scope, expr->pos, RI_TOKEN_TO_OP_[token_kind].assign, expr, right);
+        return ri_make_st_assign_(parser->arena, parser->scope, pos, RI_TOKEN_TO_OP_[token_kind].assign, expr, right);
     } else {
         return ri_make_st_expr_(parser->arena, parser->scope, expr->pos, expr);
     }
@@ -1502,7 +1666,7 @@ ri_parse_st_simple_(RiParser* parser)
 {
     RI_CHECK(parser->ri->error.kind == RiError_None);
 
-    RiPos pos = parser->token.pos;
+    RiPos pos;
     RiNode* node = NULL;
     switch (parser->token.kind)
     {
@@ -1513,6 +1677,7 @@ ri_parse_st_simple_(RiParser* parser)
             }
 
             // Assignment.
+            pos = parser->token.pos;
             switch (ri_lex_next_if_(parser, RiToken_Eq))
             {
                 case RiLexNextIf_Match: {

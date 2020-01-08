@@ -46,8 +46,6 @@ struct RiError {
 
 struct RiModule
 {
-    // Name of the module.
-    String id;
     // Path from which we're loading the module.
     String path;
     // Storage for all module's data.
@@ -144,16 +142,16 @@ void ri_init(Ri* ri, void* host);
 void ri_purge(Ri* ri);
 
 // Loads a file into buffer, stores path where it has been found to `path`.
-bool ri_load(Ri* ri, String name, CharArray* path, ByteArray* stream);
+bool ri_load(Ri* ri, String rel, CharArray* o_path, ByteArray* o_stream);
 // Allocates and initializes a module.
-RiModule* ri_module(Ri* ri, String path, String id);
+RiModule* ri_add(Ri* ri, String path);
 // Parses the module AST from `stream` passed.
 bool ri_parse(Ri* ri, RiModule* module, ByteSlice stream);
 // Resolves module.
 bool ri_resolve(Ri* ri, RiModule* module);
 
 // Loads, initializes, parses and resolves the module.
-RiModule* ri_import(Ri* ri, String id);
+RiModule* ri_import(Ri* ri, String rel);
 
 // If error has happened it'll print the error out.
 void ri_error_log(Ri* ri);

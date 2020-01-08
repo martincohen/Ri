@@ -64,6 +64,8 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
 ### AST
 
 - [x] Ignore named return values (we'll do multiple return values and named return values later).
+- [ ] Make `Value_Constant` an expression.
+    - [ ] Get rid of `ri_is_expr_like`.
 - [ ] C qualifiers:
     - https://www.oracle.com/technetwork/server-storage/solaris10/cc-restrict-139391.html
     - [ ] `const` qualifier
@@ -71,7 +73,6 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     - [ ] `restrict` qualifier
 - [ ] Ri calling convention passing a pointer to current `context` as first argument.
     - This will be simply determined by the signature of the function we're calling, if the signature has `*RiContext` as first argument, we'll inject it as one, otherwise we'll just call using platform's native calling convention.
-- [ ] Rework `constant` node as it's messy now. Probably also add support for initializers.
 - [ ] Merge same types. See assignability rules here: https://golang.org/ref/spec#Assignability
 - [ ] `nil` as predefined identifier
 - [ ] Check for compatible types when casting consts.
@@ -79,6 +80,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
 - [ ] Type checking
     - [x] Basic type checking.
     - [x] Constant implicit casting.
+    - [ ] Node kind checking for specs et al. as we're now allowing expressions instead of just ids.
     - [ ] Type checking for `for`.
     - [ ] Type checking for `if`.
     - [ ] Type checking for `switch`.

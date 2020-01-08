@@ -15,7 +15,7 @@
 #define RI_LOG_DEBUG LOG_DEBUG
 
 #define RI_POS_OUTSIDE (RiPos){ -1, -1 }
-#define RI_ID_NULL (String){ NULL, 0 }
+#define RI_ID_NULL (String){ 0 }
 #define RI_INVALID_SLOT (-1)
 
 typedef struct RiPos RiPos;

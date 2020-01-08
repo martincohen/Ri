@@ -50,6 +50,8 @@ enum RiNodeKind
     RiNode_Scope_FIRST__,
         RiNode_Scope_Root,
         RiNode_Scope_Module,
+        RiNode_Scope_Struct,
+        RiNode_Scope_Union,
         RiNode_Scope_Function_Root,
         RiNode_Scope_Function_Body,
         RiNode_Scope_If_Root,
@@ -61,7 +63,7 @@ enum RiNodeKind
         RiNode_Scope_Nested,
         RiNode_Scope_Statement,
     RiNode_Scope_LAST__,
-    RiNode_Id,
+
     RiNode_Decl,
 
     RiNode_Spec_FIRST__,
@@ -110,6 +112,7 @@ enum RiNodeKind
         RiNode_Spec_Type_LAST__,
     RiNode_Spec_LAST__,
 
+    // TODO: Practically the same as RiNode_Expr_Field, except Field does not hold a reference to type.
     RiNode_Value_FIRST__,
         RiNode_Value_Var,
         RiNode_Value_Func,
@@ -119,6 +122,9 @@ enum RiNodeKind
     RiNode_Value_LAST__,
 
     RiNode_Expr_FIRST__,
+        RiNode_Expr_Id,
+        RiNode_Expr_Select,
+        RiNode_Expr_Field,
         RiNode_Expr_Call,
         RiNode_Expr_Cast,
         RiNode_Expr_AddrOf,
@@ -138,9 +144,6 @@ enum RiNodeKind
         RiNode_Expr_Unary_LAST__,
 
         RiNode_Expr_Binary_FIRST__,
-            // Syntax
-            RiNode_Expr_Binary_Select,
-
             RiNode_Expr_Binary_Numeric_FIRST__,
                 // Arithmetic
                 RiNode_Expr_Binary_Numeric_Arithmetic_FIRST__,
@@ -210,7 +213,7 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
     ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
 
 #define ri_is_expr_like(NodeKind) \
-    (ri_is_in(NodeKind, RiNode_Expr) || (NodeKind) == RiNode_Id || ((NodeKind) == RiNode_Value_Constant))
+    (ri_is_in(NodeKind, RiNode_Expr) || ((NodeKind) == RiNode_Value_Constant))
 
 //
 //
@@ -220,6 +223,7 @@ enum RiVarKind {
     RiVar_Local,
     RiVar_Input,
     RiVar_Output,
+    RiVar_Field,
 };
 
 //
@@ -263,10 +267,10 @@ struct RiNode
 
         struct {
             RiNode* spec;
+            String id;
         } decl;
 
         struct {
-            String id;
             RiSpecState state;
             union {
                 // When module is loaded, here we keep the reference to RiNode_Module node.
@@ -306,8 +310,7 @@ struct RiNode
                             RiNodeArray outputs;
                         } func;
                         struct {
-                            RiNodeArray fields;
-                            iptr size;
+                            RiNode* scope;
                         } compound;
                         struct {
                             RiNode* base;
@@ -318,6 +321,11 @@ struct RiNode
         } spec;
 
         // Statement/Expression operators.
+
+        struct {
+            RiNode* parent;
+            RiNode* child;
+        } field;
 
         struct {
             // NOTE: Data used by all RiNode_Expr_Binary_* types.
@@ -337,9 +345,11 @@ struct RiNode
             RiNodeArray arguments;
         } call;
 
+        // Value nodes replace Id nodes at resolve phase.
         // A constant or reference to a spec used in expressions (var, func, type,...)
         struct {
             RiNode* spec;
+            RiNode* decl;
             // TODO: Split this up, or implement all constants as specs?
             struct {
                 RiNode* type;
@@ -399,14 +409,16 @@ struct RiNode
 
 RiNode* ri_make_node_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
 RiNode* ri_make_scope_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
-RiNode* ri_make_identifier_(Arena* arena, RiNode* owner, RiPos pos, String name);
-RiNode* ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiVarKind kind);
-RiNode* ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiLiteral value);
-RiNode* ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos, String id);
-RiNode* ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiNode* scope);
-RiNode* ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNodeArray inputs, RiNodeArray outputs);
-RiNode* ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNodeKind kind);
-RiNode* ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, RiNode* spec);
+RiNode* ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiVarKind kind);
+RiNode* ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiLiteral value);
+RiNode* ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos);
+RiNode* ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiNode* scope);
+RiNode* ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, RiNodeArray inputs, RiNodeArray outputs);
+RiNode* ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
+RiNode* ri_make_spec_type_struct_(Arena* arena, RiNode* owner, RiPos pos, RiNode* scope);
+RiNode* ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* spec);
+RiNode* ri_make_expr_id_(Arena* arena, RiNode* owner, RiPos pos, String name);
+RiNode* ri_make_expr_field_(Arena* arena, RiPos pos, RiNode* parent, RiNode* child);
 RiNode* ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func);
 RiNode* ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1);
 RiNode* ri_make_expr_unary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument);
@@ -420,3 +432,5 @@ RiNode* ri_make_st_switch_case_(Arena* arena, RiNode* owner, RiPos pos, RiNode* 
 RiNode* ri_make_st_switch_default_(Arena* arena, RiNode* owner, RiPos pos);
 RiNode* ri_make_st_break_(Arena* arena, RiNode* owner, RiPos pos);
 RiNode* ri_make_st_continue_(Arena* arena, RiNode* owner, RiPos pos);
+
+void ri_type_get_title_(RiNode* type, CharArray* o_buffer);

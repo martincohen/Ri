@@ -21,26 +21,14 @@ ri_make_scope_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
     return node;
 }
 
-RiNode*
-ri_make_identifier_(Arena* arena, RiNode* owner, RiPos pos, String name)
-{
-    CHECK(name.items != 0);
-    CHECK(name.count > 0);
-    // TODO: Checks.
-    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Id);
-    node->id.name = name;
-    return node;
-}
-
 //
 // Variable
 //
 
 RiNode*
-ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiVarKind kind)
+ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiVarKind kind)
 {
     RiNode* spec = ri_make_node_(arena, owner, pos, RiNode_Spec_Var);
-    spec->spec.id = id;
     spec->spec.var.type = type;
     spec->spec.var.kind = kind;
     spec->spec.var.slot = RI_INVALID_SLOT;
@@ -52,12 +40,11 @@ ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* typ
 //
 
 RiNode*
-ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiLiteral value)
+ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiLiteral value)
 {
     RI_CHECK(type);
     RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type_Number));
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Constant);
-    node->spec.id = id;
     node->spec.constant.type = type;
     node->spec.constant.value = value;
     return node;
@@ -68,10 +55,9 @@ ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode
 //
 
 RiNode*
-ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos, String id)
+ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Module);
-    node->spec.id = id;
     return node;
 }
 
@@ -80,7 +66,7 @@ ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos, String id)
 //
 
 RiNode*
-ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiNode* scope)
+ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiNode* scope)
 {
     RI_CHECK(type);
     RI_CHECK(type->kind == RiNode_Spec_Type_Func);
@@ -88,7 +74,6 @@ ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* ty
     RI_CHECK(scope->kind == RiNode_Scope_Function_Root);
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Func);
-    node->spec.id = id;
     node->spec.func.type = type;
     node->spec.func.scope = scope;
     node->spec.func.slot = RI_INVALID_SLOT;
@@ -100,20 +85,28 @@ ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* ty
 //
 
 RiNode*
-ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNodeArray inputs, RiNodeArray outputs) {
+ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, RiNodeArray inputs, RiNodeArray outputs) {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Type_Func);
-    node->spec.id = id;
     node->spec.type.func.inputs = inputs;
     node->spec.type.func.outputs = outputs;
     return node;
 }
 
 RiNode*
-ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNodeKind kind)
+ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
 {
     RI_CHECK(ri_is_in(kind, RiNode_Spec_Type_Number));
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
-    node->spec.id = id;
+    return node;
+}
+
+RiNode*
+ri_make_spec_type_struct_(Arena* arena, RiNode* owner, RiPos pos, RiNode* scope)
+{
+    RI_CHECK(scope);
+    RI_CHECK(scope->kind == RiNode_Scope_Struct);
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Type_Struct);
+    node->spec.type.compound.scope = scope;
     return node;
 }
 
@@ -122,13 +115,14 @@ ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, String id, RiN
 //
 
 RiNode*
-ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, RiNode* spec)
+ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* spec)
 {
     RI_CHECK(spec);
-    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || spec->kind == RiNode_Id);
+    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || ri_is_expr_like(spec->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Decl);
     node->decl.spec = spec;
+    node->decl.id = id;
     array_push(&node->owner->scope.decl, node);
     return node;
 }
@@ -136,6 +130,36 @@ ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, RiNode* spec)
 //
 // Expressions
 //
+
+RiNode*
+ri_make_expr_id_(Arena* arena, RiNode* owner, RiPos pos, String name)
+{
+    CHECK(name.items != 0);
+    CHECK(name.count > 0);
+    // TODO: Checks.
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Id);
+    node->id.name = name;
+    return node;
+}
+
+RiNode*
+ri_make_expr_field_(Arena* arena, RiPos pos, RiNode* parent, RiNode* child)
+{
+    RiNode* owner = NULL;
+    switch (parent->kind) {
+        case RiNode_Spec_Type_Struct:
+            owner = parent->spec.type.compound.scope;
+            break;
+        default:
+            RI_UNREACHABLE;
+            break;
+    }
+
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Field);
+    node->field.parent = parent;
+    node->field.child = child;
+    return node;
+}
 
 RiNode*
 ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func)
@@ -151,7 +175,7 @@ ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func)
 RiNode*
 ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
 {
-    RI_CHECK(ri_is_in(kind, RiNode_Expr_Binary));
+    RI_CHECK(ri_is_in(kind, RiNode_Expr_Binary) || kind == RiNode_Expr_Select);
     RI_CHECK(argument0);
     RI_CHECK(ri_is_expr_like(argument0->kind));
     RI_CHECK(argument1);
@@ -291,4 +315,58 @@ ri_make_st_continue_(Arena* arena, RiNode* owner, RiPos pos)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Continue);
     return node;
+}
+
+//
+//
+//
+
+void
+ri_type_get_title_(RiNode* type, CharArray* o_buffer)
+{
+    switch (type->kind)
+    {
+        case RiNode_Value_Type:
+            chararray_push(o_buffer, type->value.decl->decl.id);
+            break;
+
+        case RiNode_Spec_Type_Number_None_Int: chararray_push(o_buffer, S("untyped-int")); break;
+        case RiNode_Spec_Type_Number_None_Real: chararray_push(o_buffer, S("untyped-real")); break;
+
+        // Use ri->id_* constants.
+        case RiNode_Spec_Type_Number_Bool:    chararray_push(o_buffer, S("bool"));    break;
+        case RiNode_Spec_Type_Number_Int64:   chararray_push(o_buffer, S("int64"));   break;
+        case RiNode_Spec_Type_Number_Int32:   chararray_push(o_buffer, S("int32"));   break;
+        case RiNode_Spec_Type_Number_Int16:   chararray_push(o_buffer, S("int16"));   break;
+        case RiNode_Spec_Type_Number_Int8:    chararray_push(o_buffer, S("int8"));    break;
+        case RiNode_Spec_Type_Number_UInt64:  chararray_push(o_buffer, S("uint64"));  break;
+        case RiNode_Spec_Type_Number_UInt32:  chararray_push(o_buffer, S("uint32"));  break;
+        case RiNode_Spec_Type_Number_UInt16:  chararray_push(o_buffer, S("uint16"));  break;
+        case RiNode_Spec_Type_Number_UInt8:   chararray_push(o_buffer, S("uint8"));   break;
+        case RiNode_Spec_Type_Number_Float64: chararray_push(o_buffer, S("float64")); break;
+        case RiNode_Spec_Type_Number_Float32: chararray_push(o_buffer, S("float32")); break;
+
+        case RiNode_Spec_Type_Func: {
+            chararray_push(o_buffer, S("func ("));
+            RiNode* it;
+            RiNodeArray* args = &type->spec.type.func.inputs;
+            array_eachi(args, i, &it) {
+                ri_type_get_title_(it, o_buffer);
+                if (i < args->count - 1) {
+                    chararray_push(o_buffer, S(", "));
+                }
+            }
+            chararray_push(o_buffer, S(") ("));
+            args = &type->spec.type.func.outputs;
+            array_eachi(args, i, &it) {
+                ri_type_get_title_(it, o_buffer);
+                if (i < args->count - 1) {
+                    chararray_push(o_buffer, S(", "));
+                }
+            }
+        } break;
+
+        default:
+            RI_UNREACHABLE;
+    }
 }

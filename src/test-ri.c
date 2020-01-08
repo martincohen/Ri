@@ -166,12 +166,13 @@ testri_load_(String id)
 
     RI_ASSERT(ri_load(&ri, id, &path, &stream));
 
-    RiModule* module = ri_module(&ri, path.slice, id);
+    RiModule* module = ri_add(&ri, path.slice);
 
-    RI_ASSERT(ri_parse(&ri, module, stream.slice));
-    ri_log(module->node);
-
-    // RI_ASSERT(ri_resolve(&ri, module, stream.slice));
+    if (ri_parse(&ri, module, stream.slice)) {
+        ri_log(module->node);
+        RI_ASSERT(ri_resolve(&ri, module));
+        ri_log(module->node);
+    }
 
     ri_error_log(&ri);
 
@@ -181,7 +182,9 @@ testri_load_(String id)
 void
 testri_resolve()
 {
-    testri_load_(S("import/main"));
+    // testri_load_(S("import/main"));
+    testri_load_(S("struct"));
+    // testri_load_(S("const"));
 
     // testri_file_("string-not-terminated.error", TestRi_Parse);
     // testri_file_("string", TestRi_Parse);

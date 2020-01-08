@@ -1,0 +1,13 @@
+type V2 struct {
+    x float32;
+    y float32;
+    callback func(x float32, y float32) bool;
+    struct {
+        a float32;
+    };
+};
+
+var v2 V2;
+v2.x = 1;
+v2.y = 2;
+v2.callback(3, 4);
