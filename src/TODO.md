@@ -1,5 +1,16 @@
 # To do (messy)
 
+## Generics
+
+```
+func List(comptime T: type) type {
+    return struct {
+        items: []T,
+        len: usize,
+    };
+}
+```
+
 ## Read
 
 - https://github.com/luciotato/golang-notes/blob/master/OOP.md
