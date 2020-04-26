@@ -13,8 +13,8 @@ typedef enum RiTypeCompleteness RiTypeCompleteness;
 typedef struct RiNode RiNode;
 typedef union RiLiteral RiLiteral;
 
-typedef Slice(RiNode*) RiNodeSlice;
-typedef ArrayWithSlice(RiNodeSlice) RiNodeArray;
+typedef CoSlice(RiNode*) RiNodeSlice;
+typedef coarray_from_slice(RiNodeSlice) RiNodeArray;
 
 //
 //
@@ -233,7 +233,7 @@ enum RiVarKind {
 union RiLiteral {
     uint64_t integer;
     double real;
-    String string;
+    CoString string;
     bool boolean;
     void* pointer;
 };
@@ -251,7 +251,7 @@ struct RiNode
     RiPos pos;
     union {
         struct {
-            String name;
+            CoString name;
             // When resolved, spec is filled, otherwise it's NULL.
             RiNode* spec;
         } symbol;
@@ -261,7 +261,7 @@ struct RiNode
         } module;
 
         struct {
-            Map map;
+            CoMap map;
             // TODO: Doesn't seem to be essential.
             RiNodeArray decl;
             RiNodeArray statements;
@@ -269,7 +269,7 @@ struct RiNode
 
         struct {
             RiNode* spec;
-            String id;
+            CoString id;
         } decl;
 
         struct {
@@ -402,32 +402,32 @@ struct RiNode
     };
 };
 
-RiNode* ri_make_node_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
-RiNode* ri_make_scope_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
-RiNode* ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiVarKind kind);
-RiNode* ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiLiteral value);
-RiNode* ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos);
-RiNode* ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, RiNode* type, RiNode* scope);
-RiNode* ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, RiNodeArray inputs, RiNodeArray outputs);
-RiNode* ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
-RiNode* ri_make_spec_type_struct_(Arena* arena, RiNode* owner, RiPos pos, RiNode* scope);
-RiNode* ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* spec);
-RiNode* ri_make_expr_symbol_(Arena* arena, RiNode* owner, RiPos pos, String name);
-RiNode* ri_make_expr_field_(Arena* arena, RiPos pos, RiNode* parent, RiNode* child);
-RiNode* ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func);
-RiNode* ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1);
-RiNode* ri_make_expr_unary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument);
-RiNode* ri_make_st_assign_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1);
-RiNode* ri_make_st_expr_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr);
-RiNode* ri_make_st_return_(Arena* arena, RiNode* owner, RiPos pos, RiNode* argument);
-RiNode* ri_make_st_if_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* scope);
-RiNode* ri_make_st_for_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* post, RiNode* scope);
-RiNode* ri_make_st_switch_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* expr, RiNode* scope);
-RiNode* ri_make_st_switch_case_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr);
-RiNode* ri_make_st_switch_default_(Arena* arena, RiNode* owner, RiPos pos);
-RiNode* ri_make_st_break_(Arena* arena, RiNode* owner, RiPos pos);
-RiNode* ri_make_st_continue_(Arena* arena, RiNode* owner, RiPos pos);
+RiNode* ri_make_node_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
+RiNode* ri_make_scope_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
+RiNode* ri_make_spec_var_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* type, RiVarKind kind);
+RiNode* ri_make_spec_constant_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* type, RiLiteral value);
+RiNode* ri_make_spec_module_(CoArena* arena, RiNode* owner, RiPos pos);
+RiNode* ri_make_spec_func_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* type, RiNode* scope);
+RiNode* ri_make_spec_type_func_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeArray inputs, RiNodeArray outputs);
+RiNode* ri_make_spec_type_number_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
+RiNode* ri_make_spec_type_struct_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* scope);
+RiNode* ri_make_decl_(CoArena* arena, RiNode* owner, RiPos pos, CoString id, RiNode* spec);
+RiNode* ri_make_expr_symbol_(CoArena* arena, RiNode* owner, RiPos pos, CoString name);
+RiNode* ri_make_expr_field_(CoArena* arena, RiPos pos, RiNode* parent, RiNode* child);
+RiNode* ri_make_expr_call_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* func);
+RiNode* ri_make_expr_binary_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1);
+RiNode* ri_make_expr_unary_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument);
+RiNode* ri_make_st_assign_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1);
+RiNode* ri_make_st_expr_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* expr);
+RiNode* ri_make_st_return_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* argument);
+RiNode* ri_make_st_if_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* scope);
+RiNode* ri_make_st_for_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* post, RiNode* scope);
+RiNode* ri_make_st_switch_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* expr, RiNode* scope);
+RiNode* ri_make_st_switch_case_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* expr);
+RiNode* ri_make_st_switch_default_(CoArena* arena, RiNode* owner, RiPos pos);
+RiNode* ri_make_st_break_(CoArena* arena, RiNode* owner, RiPos pos);
+RiNode* ri_make_st_continue_(CoArena* arena, RiNode* owner, RiPos pos);
 
 // Extracts Spec from Symbol, Field or Decl.
 RiNode* ri_get_spec_(RiNode* node);
-void ri_type_get_title_(RiNode* type, CharArray* o_buffer);
+void ri_type_get_title_(RiNode* type, CoCharArray* o_buffer);

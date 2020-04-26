@@ -36,8 +36,8 @@ enum RiErrorKind {
 struct RiError {
     RiErrorKind kind;
     RiPos pos;
-    CharArray message;
-    CharArray path;
+    CoCharArray message;
+    CoCharArray path;
 };
 
 //
@@ -47,9 +47,9 @@ struct RiError {
 struct RiModule
 {
     // Path from which we're loading the module.
-    String path;
+    CoString path;
     // Storage for all module's data.
-    Arena arena;
+    CoArena arena;
     // Root node of the module.
     RiNode* node;
 
@@ -57,12 +57,12 @@ struct RiModule
 
     // Current func. Used during resolving.
     RiNode* func;
-    // Array for functions to resolve next.
+    // CoArray for functions to resolve next.
     RiNodeArray pending;
 };
 
-typedef Slice(RiModule*) RiModuleSlice;
-typedef ArrayWithSlice(RiModuleSlice) RiModuleArray;
+typedef CoSlice(RiModule*) RiModuleSlice;
+typedef coarray_from_slice(RiModuleSlice) RiModuleArray;
 
 //
 //
@@ -71,12 +71,12 @@ typedef ArrayWithSlice(RiModuleSlice) RiModuleArray;
 struct Ri
 {
     // Paths for loading modules.
-    Array(String) paths;
+    CoArray(CoString) paths;
 
     // Storage for globals
-    Arena arena_;
+    CoArena arena_;
     // Storage for all ids.
-    Intern intern;
+    CoIntern intern;
     // Tracks all types.
     RiNodeArray types;
 
@@ -88,7 +88,7 @@ struct Ri
     RiModule* module;
 
     // Maps id to RiModule*.
-    Map modules_map;
+    CoMap modules_map;
     // Tracks all modules.
     RiModuleArray modules;
 
@@ -129,10 +129,10 @@ struct Ri
 //
 
 bool ri_scope_set_(Ri* ri, RiNode* scope, RiNode* decl);
-String ri_make_id_r_(Ri* ri, char* start, char* end);
-String ri_make_id_(Ri* ri, String string);
+CoString ri_make_id_r_(Ri* ri, char* start, char* end);
+CoString ri_make_id_(Ri* ri, CoString string);
 void ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...);
-void ri_error_format_(Ri* ri, CharArray* buffer);
+void ri_error_format_(Ri* ri, CoCharArray* buffer);
 
 //
 //
@@ -142,16 +142,16 @@ void ri_init(Ri* ri, void* host);
 void ri_purge(Ri* ri);
 
 // Loads a file into buffer, stores path where it has been found to `path`.
-bool ri_load(Ri* ri, String rel, CharArray* o_path, ByteArray* o_stream);
+bool ri_load(Ri* ri, CoString rel, CoCharArray* o_path, CoByteSlice* o_stream);
 // Allocates and initializes a module.
-RiModule* ri_add(Ri* ri, String path);
+RiModule* ri_add(Ri* ri, CoString path);
 // Parses the module AST from `stream` passed.
-bool ri_parse(Ri* ri, RiModule* module, ByteSlice stream);
+bool ri_parse(Ri* ri, RiModule* module, CoByteSlice stream);
 // Resolves module.
 bool ri_resolve(Ri* ri, RiModule* module);
 
 // Loads, initializes, parses and resolves the module.
-RiModule* ri_import(Ri* ri, String rel);
+RiModule* ri_import(Ri* ri, CoString rel);
 
 // If error has happened it'll print the error out.
 void ri_error_log(Ri* ri);

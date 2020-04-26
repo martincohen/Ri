@@ -3,33 +3,33 @@
 void
 testrivm_compiler_compile_file_(const char* name, void* host)
 {
-    LOG("'%s': testing", name);
+    COLOG("'%s': testing", name);
 
     Ri ri;
     ri_init(&ri, host);
 
     RiNode* ast_module = NULL;
     {
-        CharArray path_source = {0};
-        chararray_push_f(&path_source, "./src/test/vmc/%s.ri", name);
-        array_zero_term(&path_source);
-            ByteArray source = {0};
-            ASSERT(file_read(&source, path_source.items, 0));
+        CoCharArray path_source = {0};
+        cochararray_push_f(&path_source, "./src/test/vmc/%s.ri", name);
+        coarray_zero_term(&path_source);
+            CoByteArray source = {0};
+            ASSERT(cofile_read_c(&source, path_source.items, 0));
             ast_module = ri_build(&ri, S((char*)source.items, source.count), path_source.slice);
             ASSERT(ast_module);
-            array_purge(&source);
-        array_purge(&path_source);
+            coarray_purge(&source);
+        coarray_purge(&path_source);
     }
 
-    ByteArray expected = {0};
+    CoByteArray expected = {0};
     {
-        CharArray path_expected = {0};
-        chararray_push_f(&path_expected, "./src/test/vmc/%s.expected.lisp", name);
-        array_zero_term(&path_expected);
-        if (!file_read(&expected, path_expected.items, 0)) {
-            LOG("'%s': file '%s.expected.lisp' not found", name, name);
+        CoCharArray path_expected = {0};
+        cochararray_push_f(&path_expected, "./src/test/vmc/%s.expected.lisp", name);
+        coarray_zero_term(&path_expected);
+        if (!cofile_read_c(&expected, path_expected.items, 0)) {
+            COLOG("'%s': file '%s.expected.lisp' not found", name, name);
         }
-        array_purge(&path_expected);
+        coarray_purge(&path_expected);
     }
 
 
@@ -40,28 +40,28 @@ testrivm_compiler_compile_file_(const char* name, void* host)
     rivm_init(&compiler, &ri);
     ASSERT(rivm_compile(&compiler, ast_module, &module));
 
-    CharArray actual = {0};
+    CoCharArray actual = {0};
     rivm_dump_module(&module, &actual);
 
     if (expected.items != NULL) {
         if (!string_is_equal(S(expected.items, expected.count), actual.slice)) {
-            LOG("'%s': expected does not match actual", name);
-            LOG("expected:\n%S", expected.slice);
-            LOG("actual:\n%S", actual.slice);
-            LOG("---");
+            COLOG("'%s': expected does not match actual", name);
+            COLOG("expected:\n%S", expected.slice);
+            COLOG("actual:\n%S", actual.slice);
+            COLOG("---");
         }
     } else {
-        LOG("actual:\n%S", actual.slice);
+        COLOG("actual:\n%S", actual.slice);
     }
 
-    CharArray path_recent = {0};
-    chararray_push_f(&path_recent, "./src/test/vmc/%s.recent.lisp", name);
-    array_zero_term(&path_recent);
+    CoCharArray path_recent = {0};
+    cochararray_push_f(&path_recent, "./src/test/vmc/%s.recent.lisp", name);
+    coarray_zero_term(&path_recent);
     ASSERT(file_write(path_recent.items, actual.items, actual.count, 0));
-    array_purge(&path_recent);
+    coarray_purge(&path_recent);
 
-    array_purge(&actual);
-    array_purge(&expected);
+    coarray_purge(&actual);
+    coarray_purge(&expected);
 
     rivm_purge(&compiler);
     rivm_module_purge(&module);

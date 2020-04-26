@@ -415,7 +415,7 @@ next:
             ++it;
             while (it < end && *it != '"') {
                 it += 1 + (*it == '\\');
-            }            
+            }
             if (it < end && *it == '"') {
                 ++it;
             } else {
@@ -495,17 +495,17 @@ ri_lex_expect_token_(RiParser* parser, RiTokenKind expected_kind)
 }
 
 //
-// String parser
+// CoString parser
 //
 
 static void
-ri_parse_string_(const RiToken token, CharArray* buffer)
+ri_parse_string_(const RiToken token, CoCharArray* buffer)
 {
     // NOTE: We assume that the lexer did a good job here.
     char* it = token.start + 1;
     char* end = token.end - 1;
     RI_CHECK(it <= end);
-    array_reserve(buffer, end - it);
+    coarray_reserve(buffer, end - it);
     while (it < end) {
         char c = *it;
         if (c == '\\') {
@@ -525,7 +525,7 @@ ri_parse_string_(const RiToken token, CharArray* buffer)
                 // TODO: \UHHHHHHHH
             }
         }
-        array_push(buffer, c);
+        coarray_push(buffer, c);
         ++it;
     }
 }
@@ -662,7 +662,7 @@ ri_parse_expr_call_arguments_(RiParser* parser, RiNode* call)
         if (!expr) {
             return false;
         }
-        array_push(&call->call.arguments, expr);
+        coarray_push(&call->call.arguments, expr);
         if (ri_lex_next_if_(parser, RiToken_Comma) == RiLexNextIf_Error) {
             return false;
         }
@@ -980,7 +980,7 @@ ri_parse_decl_type_func_input_arg_list_(RiParser* parser, RiNodeArray* list)
         if (!decl_arg) {
             return false;
         }
-        array_push(list, decl_arg);
+        coarray_push(list, decl_arg);
         if (ri_lex_next_if_(parser, RiToken_Comma) == RiLexNextIf_Error) {
             return false;
         }
@@ -1003,7 +1003,7 @@ ri_parse_decl_type_func_output_arg_(RiParser* parser, RiNodeArray* outputs)
     if (type) {
         RiNode* spec = ri_make_spec_var_(parser->arena, parser->scope, type->pos, type, RiVar_Output);
         RiNode* decl = ri_make_decl_(parser->arena, parser->scope, type->pos, RI_ID_NULL, spec);
-        array_push(outputs, decl);
+        coarray_push(outputs, decl);
         return true;
     }
 
@@ -1030,7 +1030,7 @@ ri_parse_spec_partial_func_type_(RiParser* parser, RiPos pos)
 }
 
 static RiNode*
-ri_parse_spec_partial_func_(RiParser* parser, RiPos pos, String id)
+ri_parse_spec_partial_func_(RiParser* parser, RiPos pos, CoString id)
 {
     RI_CHECK(parser->ri->error.kind == RiError_None);
     RI_CHECK(id.items);
@@ -1060,21 +1060,21 @@ ri_parse_spec_partial_func_(RiParser* parser, RiPos pos, String id)
             // this won't be needed.
 
             RiNode* it;
-            array_each(&type->spec.type.func.inputs, &it) {
-                map_put(&scope->scope.map,
-                    (ValueScalar){ .ptr = it->decl.id.items },
-                    (ValueScalar){ .ptr = it }
+            coarray_each(&type->spec.type.func.inputs, &it) {
+                comap_put(&scope->scope.map,
+                    (CoValS){ .ptr = it->decl.id.items },
+                    (CoValS){ .ptr = it }
                 );
             }
             // TODO: Multiple return values.
             // TODO: Named return variables.
-            // array_each(&type->spec.type.func.outputs, &it) {
-            //     map_put(&scope->scope.map,
-            //         (ValueScalar){ .ptr = it->decl.spec->spec.id.items },
-            //         (ValueScalar){ .ptr = it }
+            // coarray_each(&type->spec.type.func.outputs, &it) {
+            //     comap_put(&scope->scope.map,
+            //         (CoValS){ .ptr = it->decl.spec->spec.id.items },
+            //         (CoValS){ .ptr = it }
             //     );
             // }
-            array_push(&scope->scope.statements, scope_body);
+            coarray_push(&scope->scope.statements, scope_body);
         } break;
         case RiLexNextIf_Error:
             return NULL;
@@ -1111,7 +1111,7 @@ ri_parse_spec_func_or_func_type_(RiParser* parser)
     }
 
     RiNode* node = NULL;
-    String id = parser->token.id;
+    CoString id = parser->token.id;
     switch (ri_lex_next_if_(parser, RiToken_Identifier))
     {
         case RiLexNextIf_Match:
@@ -1172,7 +1172,7 @@ ri_parse_spec_struct_type_(RiParser* parser)
             return NULL;
         }
 
-        String id = RI_ID_NULL;
+        CoString id = RI_ID_NULL;
         RiNode* expr_type = NULL;
         if (parser->token.kind != RiToken_Semicolon) {
             // No semicolons expr1 should follow.
@@ -1181,7 +1181,7 @@ ri_parse_spec_struct_type_(RiParser* parser)
                 return NULL;
             }
             // If we have type, we expect the expr_id to be just id.
-            // TODO: In future we'll need to be able to have an actual node as decl.id, since now it is only a String.
+            // TODO: In future we'll need to be able to have an actual node as decl.id, since now it is only a CoString.
             if (expr_id->kind != RiNode_Expr_Symbol) {
                 ri_error_set_unexpected_token_(parser, &token_id);
                 return NULL;
@@ -1214,9 +1214,9 @@ ri_parse_spec_struct_type_(RiParser* parser)
             if (!ri_scope_set_(parser->ri, scope, decl)) {
                 return NULL;
             }
-            array_push(&scope->scope.statements, decl);
+            coarray_push(&scope->scope.statements, decl);
         } else {
-            array_push(&scope->scope.statements, expr_type);
+            coarray_push(&scope->scope.statements, expr_type);
         }
 
         if (!ri_lex_expect_token_(parser, RiToken_Semicolon)) {
@@ -1248,7 +1248,7 @@ ri_parse_decl_type_(RiParser* parser)
         return NULL;
     }
 
-    String id = parser->token.id;
+    CoString id = parser->token.id;
     if (!ri_lex_expect_token_(parser, RiToken_Identifier)) {
         return NULL;
     }
@@ -1280,10 +1280,10 @@ ri_parse_decl_import_(RiParser* parser)
     }
 
     // TODO: Make this more efficient?
-    CharArray buffer = {0};
+    CoCharArray buffer = {0};
     ri_parse_string_(string, &buffer);
-    String id = ri_make_id_(parser->ri, buffer.slice);
-    array_purge(&buffer);
+    CoString id = ri_make_id_(parser->ri, buffer.slice);
+    coarray_purge(&buffer);
 
     RiNode* spec = ri_make_spec_module_(parser->arena, parser->scope, string.pos);
     RiNode* decl = ri_make_decl_(parser->arena, parser->scope, pos_decl, id, spec);
@@ -1430,7 +1430,7 @@ ri_parse_st_if_(RiParser* parser)
     if (!scope_then) {
         return NULL;
     }
-    array_push(&scope->scope.statements, scope_then);
+    coarray_push(&scope->scope.statements, scope_then);
 
     switch (ri_lex_next_if_(parser, RiToken_Keyword_Else))
     {
@@ -1440,7 +1440,7 @@ ri_parse_st_if_(RiParser* parser)
                 if (!else_if) {
                     return NULL;
                 }
-                array_push(&scope->scope.statements, else_if);
+                coarray_push(&scope->scope.statements, else_if);
             } else {
                 if (!ri_lex_expect_token_(parser, RiToken_LB)) {
                     return NULL;
@@ -1449,7 +1449,7 @@ ri_parse_st_if_(RiParser* parser)
                 if (!scope_else) {
                     return NULL;
                 }
-                array_push(&scope->scope.statements, scope_else);
+                coarray_push(&scope->scope.statements, scope_else);
             }
             break;
         case RiLexNextIf_Error:
@@ -1545,7 +1545,7 @@ skip:;
     if (!scope_block) {
         return NULL;
     }
-    array_push(&scope->scope.statements, scope_block);
+    coarray_push(&scope->scope.statements, scope_block);
 
     RI_CHECK(parser->scope == scope);
     parser->scope = scope->owner;
@@ -1615,7 +1615,7 @@ skip:;
         return NULL;
     }
 
-    array_push(&scope->scope.statements, scope_block);
+    coarray_push(&scope->scope.statements, scope_block);
 
     RI_CHECK(parser->scope == scope);
     parser->scope = scope->owner;
@@ -1832,7 +1832,7 @@ ri_parse_scope_(RiParser* parser, RiTokenKind end, RiNodeKind scope_kind)
         if (statement == NULL) {
             return NULL;
         }
-        array_push(&parser->scope->scope.statements, statement);
+        coarray_push(&parser->scope->scope.statements, statement);
     }
 
     if (end == RiToken_RB && !ri_lex_next_(parser)) {
@@ -1849,7 +1849,7 @@ ri_parse_scope_(RiParser* parser, RiTokenKind end, RiNodeKind scope_kind)
 //
 
 RiNode*
-ri_parse_(Ri* ri, ByteSlice stream)
+ri_parse_(Ri* ri, CoByteSlice stream)
 {
     RiParser parser = {
         .ri = ri,

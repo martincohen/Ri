@@ -4,7 +4,7 @@
 
 typedef struct RiDump_ {
     RiPrinter printer;
-    Map logged;
+    CoMap logged;
 } RiDump_;
 
 static void ri_dump_(RiDump_* dump, RiNode* node);
@@ -18,7 +18,7 @@ ri_dump_slice_(RiDump_* D, RiNodeSlice* nodes, const char* block)
         }
         riprinter_print(&D->printer, "\n\t");
         RiNode* it;
-        array_each(nodes, &it) {
+        coarray_each(nodes, &it) {
             ri_dump_(D, it);
         }
         riprinter_print(&D->printer, "\b");
@@ -94,9 +94,9 @@ ri_dump_(RiDump_* D, RiNode* node)
 
     RiNode* it;
 
-    int is_logged = map_get(&D->logged, (ValueScalar){ .ptr = node }).i32;
+    int is_logged = comap_get(&D->logged, (CoValS){ .ptr = node }).i32;
     if (!is_logged) {
-        map_put(&D->logged, (ValueScalar){ .ptr = node }, (ValueScalar){ .i32 = 1 });
+        comap_put(&D->logged, (CoValS){ .ptr = node }, (CoValS){ .i32 = 1 });
     }
 
     if (ri_is_in(node->kind, RiNode_Expr_Binary) || ri_is_in(node->kind, RiNode_St_Assign) || node->kind == RiNode_Expr_Select) {
@@ -125,11 +125,11 @@ ri_dump_(RiDump_* D, RiNode* node)
         }
     } else if (ri_is_in(node->kind, RiNode_Scope)) {
         if (is_logged) {
-            riprinter_print(&D->printer, "(scope (RECURSIVE))\n");    
+            riprinter_print(&D->printer, "(scope (RECURSIVE))\n");
         } else {
             riprinter_print(&D->printer, "(scope\n\t");
             if (node->scope.decl.count) {
-                array_each(&node->scope.decl, &it) {
+                coarray_each(&node->scope.decl, &it) {
                     ri_dump_(D, it);
                 }
             }
@@ -320,7 +320,7 @@ ri_dump_(RiDump_* D, RiNode* node)
 }
 
 void
-ri_dump(RiNode* node, CharArray* buffer)
+ri_dump(RiNode* node, CoCharArray* buffer)
 {
     RI_CHECK(node);
     RI_CHECK(buffer);
@@ -329,14 +329,14 @@ ri_dump(RiNode* node, CharArray* buffer)
         .printer.out = buffer
     };
     ri_dump_(&dump, node);
-    map_purge(&dump.logged);
+    comap_purge(&dump.logged);
 }
 
 void
 ri_log(RiNode* node)
 {
-    CharArray buffer = {0};
+    CoCharArray buffer = {0};
     ri_dump(node, &buffer);
     RI_LOG("%S", buffer.slice);
-    array_purge(&buffer);
+    coarray_purge(&buffer);
 }

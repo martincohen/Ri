@@ -107,7 +107,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     - [x] Typed constants
     - [ ] Named typed constants
     - [ ] Real constants
-    - [ ] String constants
+    - [ ] CoString constants
     - [ ] Struct initializer constants
     - [ ] Union initializer constants
 - [ ] Allow multiple errors in `typecheck` phase.
@@ -153,7 +153,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     [ ] Implement a different type of array, one that keeps it's properties (count, capacity) on the heap (should take less space in `RiNode` union).
 - [ ] Use `longjmp` for error handling. Register arrays to `ri->array`:
 ```c
-    Array(RiNode*) arguments = {0};
+    CoArray(RiNode*) arguments = {0};
     ri_array_push_(ri, &arguments);
     // ... read arguments to the array
     ri_array_pop_(ri);
@@ -177,9 +177,9 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     - https://golang.org/doc/effective_go.html#interfaces
 - Multiple return values
     - On C side it's returned as `struct`.
-- Slice
+- CoSlice
     - `[]int`
-    - Syntax sugar for `struct { T* items; iptr count; }`
+    - Syntax sugar for `struct { T* items; intptr_t count; }`
 - Do we want `??` operator?
     - https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-coalescing-operator
 - Compound math types
@@ -206,7 +206,7 @@ var a []float;
 var b [2]float;
 var c [*]float = { ... };
 
-var a Slice(float);
+var a CoSlice(float);
 var b [2]float;
 b = { 1, 2 };
 var c []float = { ... };
@@ -234,11 +234,11 @@ var c = a + b;
 - Package is a function that returns a struct-like instance.
 ```go
 // lib.ri
-func file_read(path char8[]) uint8[] {
+func cofile_read_c(path char8[]) uint8[] {
     // ...
 }
 
 // main.ri
 import "lib"
-var data = lib.file_read("test.txt");
+var data = lib.cofile_read_c("test.txt");
 ```

@@ -125,7 +125,7 @@ Following lists detailed features. Since the project has multiple layers, I use 
         - [x] Integer (PTCI)
         - [x] Real (PTC)
         - [x] Boolean (PTC)
-        - [ ] String
+        - [ ] CoString
         - [ ] Initializers
         - [ ] Nil
     - [ ] Typed named constants

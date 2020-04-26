@@ -111,7 +111,7 @@ struct RiToken {
     char* start;
     char* end;
     union {
-        String id;
+        CoString id;
         uint64_t integer;
         double real;
     };
@@ -119,7 +119,7 @@ struct RiToken {
 
 struct RiStream
 {
-    iptr line_index;
+    intptr_t line_index;
     char* line;
     char* start;
     char* end;
@@ -130,11 +130,11 @@ struct RiParser
 {
     Ri* ri;
     RiStream stream;
-    Arena* arena;
+    CoArena* arena;
 
     // State
     RiToken token;
     RiNode* scope;
 };
 
-RiNode* ri_parse_(Ri* ri, ByteSlice stream);
+RiNode* ri_parse_(Ri* ri, CoByteSlice stream);

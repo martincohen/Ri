@@ -45,8 +45,8 @@ rivm_init(RiVmCompiler* compiler, Ri* ri)
 void
 rivm_purge(RiVmCompiler* compiler)
 {
-    array_purge(&compiler->slot_pool);
-    array_purge(&compiler->labels);
+    coarray_purge(&compiler->slot_pool);
+    coarray_purge(&compiler->labels);
     memset(compiler, 0, sizeof(RiVmCompiler));
 }
 
@@ -142,7 +142,7 @@ rivm_code_emit_(RiVmInstArray* code, const RiVmInst inst)
         }
     }
 
-    array_push(code, inst);
+    coarray_push(code, inst);
     return (uint32_t)(code->count - 1);
 }
 
@@ -161,7 +161,7 @@ rivm_acquire_slot_(RiVmCompiler* compiler, RiVmParamSlotKind kind, RiVmValueType
 {
     uint32_t index;
     if (compiler->slot_pool.count) {
-        index = array_at(&compiler->slot_pool, 0);
+        index = coarray_at(&compiler->slot_pool, 0);
         array_remove(&compiler->slot_pool, 0, 1);
     } else {
         index = compiler->slot_next;
@@ -178,7 +178,7 @@ rivm_acquire_slot_(RiVmCompiler* compiler, RiVmParamSlotKind kind, RiVmValueType
     if (compiler->slot.count <= index) {
         array_resize(&compiler->slot, index + 1);
     }
-    array_at(&compiler->slot, index) = param;
+    coarray_at(&compiler->slot, index) = param;
 
     // RI_LOG_DEBUG("allocating %s slot %d of type %s",
     //     RIVM_DEBUG_SOURCE_NAMES_[kind],
@@ -196,7 +196,7 @@ rivm_release_slot_(RiVmCompiler* compiler, RiVmParam param)
         if (param.slot.kind == RiSlot_Temporary) {
             RI_ASSERT(param.slot.index >= 0);
             param.kind = RiVmParam_None;
-            array_push(&compiler->slot_pool, param.slot.index);
+            coarray_push(&compiler->slot_pool, param.slot.index);
         }
     } else {
         RI_ASSERT(param.kind == RiVmParam_Imm || param.kind == RiVmParam_None);
@@ -206,7 +206,7 @@ rivm_release_slot_(RiVmCompiler* compiler, RiVmParam param)
 static RiVmParam
 rivm_get_slot_param_(RiVmCompiler* compiler, uint32_t index)
 {
-    return array_at(&compiler->slot, index);
+    return coarray_at(&compiler->slot, index);
 }
 
 //
@@ -216,7 +216,7 @@ rivm_get_slot_param_(RiVmCompiler* compiler, uint32_t index)
 static RiVmParam
 rivm_create_label_(RiVmCompiler* compiler)
 {
-    array_push(&compiler->labels, -1);
+    coarray_push(&compiler->labels, -1);
     return (RiVmParam) {
         .kind = RiVmParam_Label,
         .label = compiler->labels.count
@@ -228,7 +228,7 @@ rivm_mark_label_(RiVmCompiler* compiler, RiVmParam param)
 {
     RI_ASSERT(param.kind == RiVmParam_Label);
     RI_ASSERT(param.label > 0);
-    array_at(&compiler->labels, param.label - 1) = compiler->code.count;
+    coarray_at(&compiler->labels, param.label - 1) = compiler->code.count;
 }
 
 //
@@ -299,7 +299,7 @@ rivm_get_param_(RiVmCompiler* compiler, RiNode* ast_var)
 // rivm_get_param_for_output_(RiVmCompiler* compiler, int output_index)
 // {
 //     RiNode* ast_func_type = compiler->ast_func->spec.func.type;
-//     RiNode* output = array_at(&ast_func_type->spec.type.func.outputs, output_index);
+//     RiNode* output = coarray_at(&ast_func_type->spec.type.func.outputs, output_index);
 //     return rivm_get_slot_param_(compiler, output->decl.spec->spec.var.slot);
 // }
 
@@ -353,7 +353,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
 
             case RiNode_Expr_Call: {
                 RiNodeArray* arguments = &ast_expr->call.arguments;
-                for (iptr i = 0; i < arguments->count; ++i)
+                for (intptr_t i = 0; i < arguments->count; ++i)
                 {
                     RiVmParam arg = rivm_compile_expr_(compiler, arguments->items[i]);
                     rivm_code_emit(&compiler->code, CallArg, arg);
@@ -367,7 +367,7 @@ rivm_compile_expr_(RiVmCompiler* compiler, RiNode* ast_expr)
 
                 RiNodeArray* func_outputs = &func_type->spec.type.func.outputs;
                 RI_CHECK(func_outputs->count < 2);
-                
+
                 RiVmParam result = { RiVmParam_None };
                 if (func_outputs->count == 1) {
                     RiNode* output = func_outputs->items[0];
@@ -431,7 +431,7 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
     if (ri_is_in(ast_st->kind, RiNode_Scope))
     {
         RiNode* it;
-        array_each(&ast_st->scope.statements, &it) {
+        coarray_each(&ast_st->scope.statements, &it) {
             rivm_compile_st_(compiler, it);
         }
     }
@@ -439,7 +439,7 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
     {
         case RiNode_Decl: {
             if (ast_st->decl.spec->kind == RiNode_Spec_Func) {
-                array_push(&compiler->pending, ast_st->decl.spec);
+                coarray_push(&compiler->pending, ast_st->decl.spec);
             }
         } break;
 
@@ -479,12 +479,12 @@ rivm_compile_st_(RiVmCompiler* compiler, RiNode* ast_st)
 
             RiNodeArray* statements = &ast_st->st_if.scope->scope.statements;
             rivm_mark_label_(compiler, label_then);
-            rivm_compile_st_(compiler, array_at(statements, 0));
+            rivm_compile_st_(compiler, coarray_at(statements, 0));
             if (statements->count > 1) {
                 RiVmParam label_end  = rivm_create_label_(compiler);
                 rivm_code_emit(&compiler->code, GoTo, label_end);
                 rivm_mark_label_(compiler, label_else);
-                rivm_compile_st_(compiler, array_at(statements, 1));
+                rivm_compile_st_(compiler, coarray_at(statements, 1));
                 rivm_mark_label_(compiler, label_end);
             } else {
                 rivm_mark_label_(compiler, label_else);
@@ -501,7 +501,7 @@ static void
 rivm_acquire_func_args_(RiVmCompiler* compiler, RiVmParamSlotKind source, RiNodeArray* args)
 {
     // TODO: Only named args.
-    for (iptr i = 0; i < args->count; ++i) {
+    for (intptr_t i = 0; i < args->count; ++i) {
         RI_ASSERT(args->items[i]->kind == RiNode_Decl);
         RI_ASSERT(args->items[i]->decl.spec->kind == RiNode_Spec_Var);
         // TODO: Extracting a type of var decl is a bit too awkward to do. Is there a better way?
@@ -524,7 +524,7 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
 
     RiNode* ast_scope = NULL;
     RiNode* ast_func_type = NULL;
-    iptr outputs_count = 0;
+    intptr_t outputs_count = 0;
     if (ast_func->kind == RiNode_Spec_Func)
     {
         ast_func_type = ast_func->spec.func.type;
@@ -546,7 +546,7 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     {
         rivm_compile_st_(compiler, ast_scope);
     }
-    RiVmInst* enter = &array_at(&compiler->code, enter_index);
+    RiVmInst* enter = &coarray_at(&compiler->code, enter_index);
     enter->param0 = rivm_make_param(Imm,
         .type = RiVmValue_U64,
         .imm.u64 = compiler->slot_next - slot_locals
@@ -565,7 +565,7 @@ rivm_compile_func_(RiVmCompiler* compiler, RiNode* ast_func)
     }
     compiler->code = (RiVmInstArray){0};
 
-    array_clear(&compiler->slot_pool);
+    coarray_clear(&compiler->slot_pool);
     compiler->slot_next = 0;
 
     return func;
@@ -576,7 +576,7 @@ rivm_patch_label_(RiVmCompiler* compiler, RiVmParam* param)
 {
     param->kind = RiVmParam_Imm;
     param->type = RiVmValue_U64;
-    param->imm.u64 = array_at(&compiler->labels, param->label - 1);
+    param->imm.u64 = coarray_at(&compiler->labels, param->label - 1);
 }
 
 static void
@@ -596,7 +596,7 @@ rivm_patch_(RiVmCompiler* compiler, RiVmModule* module)
                         RiNode* ast_func = inst->param1.func;
                         RI_CHECK(ast_func);
                         RI_CHECK(ast_func->spec.func.slot != RI_INVALID_SLOT);
-                        RiVmFunc* func = array_at(&module->func, ast_func->spec.func.slot);
+                        RiVmFunc* func = coarray_at(&module->func, ast_func->spec.func.slot);
                         inst->param1.func = func;
                     }
                 } break;
@@ -619,13 +619,13 @@ rivm_compile(RiVmCompiler* compiler, RiNode* ast_module, RiVmModule* module)
 {
     compiler->module = module;
     RI_ASSERT(ast_module->kind == RiNode_Module);
-    array_push(&compiler->pending, ast_module);
+    coarray_push(&compiler->pending, ast_module);
 
     RiNode* ast_scope = ast_module->module.scope;
 
     while (compiler->pending.count)
     {
-        RiNode* spec = array_at(&compiler->pending, 0);
+        RiNode* spec = coarray_at(&compiler->pending, 0);
         array_remove(&compiler->pending, 0, 1);
         rivm_compile_func_(compiler, spec);
     }
@@ -640,28 +640,28 @@ rivm_compile(RiVmCompiler* compiler, RiNode* ast_module, RiVmModule* module)
 //
 
 bool
-rivm_compile_file(String path, RiVmModule* module, void* host)
+rivm_compile_file(CoString path, RiVmModule* module, void* host)
 {
     Ri ri;
     ri_init(&ri, host);
-    CharArray out = {0};
+    CoCharArray out = {0};
 
     RiNode* ast_module = NULL;
 
     {
-        CharArray path_source = {0};
-        chararray_push(&path_source, path);
-        array_zero_term(&path_source);
-            ByteArray source = {0};
-            ASSERT(file_read(&source, path_source.items, 0));
+        CoCharArray path_source = {0};
+        cochararray_push(&path_source, path);
+        coarray_zero_term(&path_source);
+            CoByteArray source = {0};
+            ASSERT(cofile_read_c(&source, path_source.items, 0));
             ast_module = ri_build(&ri, S((char*)source.items, source.count), path_source.slice);
             ASSERT(ast_module);
-            array_purge(&source);
-        array_purge(&path_source);
+            coarray_purge(&source);
+        coarray_purge(&path_source);
     }
 
     ri_dump(&ri, ast_module, &out);
-    LOG("%S", out);
+    COLOG("%S", out);
 
     RiVmCompiler compiler;
     rivm_init(&compiler, &ri);
@@ -670,11 +670,11 @@ rivm_compile_file(String path, RiVmModule* module, void* host)
         return false;
     }
 
-    array_clear(&out);
+    coarray_clear(&out);
     rivm_dump_module(module, &out);
-    LOG("%S", out);
+    COLOG("%S", out);
 
-    array_purge(&out);
+    coarray_purge(&out);
     rivm_purge(&compiler);
     ri_purge(&ri);
 

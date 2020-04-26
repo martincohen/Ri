@@ -44,16 +44,16 @@ ri_error_set_(Ri* ri, RiErrorKind kind, RiPos pos, const char* format, ...)
 
     va_list args;
     va_start(args, format);
-    chararray_push_fv(&ri->error.message, format, args);
+    cochararray_push_fv(&ri->error.message, format, args);
     va_end(args);
 
-    chararray_push(&ri->error.path, ri->module->path);
+    cochararray_push(&ri->error.path, ri->module->path);
 }
 
 void
-ri_error_format_(Ri* ri, CharArray* buffer)
+ri_error_format_(Ri* ri, CoCharArray* buffer)
 {
-    chararray_push_f(
+    cochararray_push_f(
         buffer,
         "error %S:%d:%d: %S",
         ri->error.path.slice,
@@ -68,10 +68,10 @@ ri_error_log(Ri* ri)
 {
     if (ri->error.kind != RiError_None)
     {
-        CharArray message = {0};
+        CoCharArray message = {0};
         ri_error_format_(ri, &message);
         RI_LOG("%S", message.slice);
-        array_purge(&message);
+        coarray_purge(&message);
     }
 }
 
@@ -86,8 +86,8 @@ ri_error_set_mismatched_types_(Ri* ri, RiPos pos, RiNode* type0, RiNode* type1, 
         op = "and";
     }
 
-    CharArray s0 = {0};
-    CharArray s1 = {0};
+    CoCharArray s0 = {0};
+    CoCharArray s1 = {0};
     ri_type_get_title_(type0, &s0);
     ri_type_get_title_(type1, &s1);
 
@@ -101,32 +101,32 @@ ri_error_set_mismatched_types_(Ri* ri, RiPos pos, RiNode* type0, RiNode* type1, 
         s1.slice
     );
 
-    array_purge(&s0);
-    array_purge(&s1);
+    coarray_purge(&s0);
+    coarray_purge(&s1);
 }
 
 //
 //
 //
 
-String
+CoString
 ri_make_id_r_(Ri* ri, char* start, char* end)
 {
     RI_CHECK(start);
     RI_CHECK(end);
     RI_CHECK(start <= end);
-    return (String){
-        .items = (char*)intern_put_r(&ri->intern, start, end),
+    return (CoString){
+        .items = (char*)cointern_put_r(&ri->intern, start, end),
         .count = end - start
     };
 }
 
-String
-ri_make_id_(Ri* ri, String string) {
+CoString
+ri_make_id_(Ri* ri, CoString string) {
     RI_CHECK(string.items);
     RI_CHECK(string.count >= 0);
-    return (String){
-        .items = (char*)intern_put_c(&ri->intern, string.items, string.count),
+    return (CoString){
+        .items = (char*)cointern_put_c(&ri->intern, string.items, string.count),
         .count = string.count
     };
 }
@@ -145,13 +145,13 @@ ri_scope_set_(Ri* ri, RiNode* scope, RiNode* decl)
     RI_CHECK(decl->decl.spec);
     RI_CHECK(ri_is_expr(decl->decl.spec->kind) || ri_is_spec(decl->decl.spec->kind));
     RI_CHECK(scope == decl->owner);
-    ValueScalar id_ = { .ptr = decl->decl.id.items };
-    RiNode* decl_found = map_get(&scope->scope.map, id_).ptr;
+    CoValS id_ = { .ptr = decl->decl.id.items };
+    RiNode* decl_found = comap_get(&scope->scope.map, id_).ptr;
     if (decl_found != NULL) {
         ri_error_set_(ri, RiError_Declared, decl->pos, "'%S' is already declared", decl->decl.id);
         return false;
     }
-    map_put(&scope->scope.map, id_, (ValueScalar){ .ptr = decl });
+    comap_put(&scope->scope.map, id_, (CoValS){ .ptr = decl });
     return decl;
 }
 
@@ -235,7 +235,7 @@ ri_add_type_identity_(Ri* ri, RiNode* node)
 {
     RI_CHECK(ri_is_in(node->kind, RiNode_Spec_Type));
     RI_CHECK(node->spec.type.identity == NULL);
-    array_push(&ri->types, node);
+    coarray_push(&ri->types, node);
     node->spec.type.identity = node;
 }
 
@@ -248,7 +248,7 @@ ri_set_type_identity_(Ri* ri, RiNode* node)
     }
 
     RiNode* it;
-    array_eachi(&ri->types, i, &it) {
+    coarray_eachi(&ri->types, i, &it) {
         if (ri_type_equal_(ri, it, node)) {
             node->spec.type.identity = it;
             return;
@@ -283,15 +283,15 @@ ri_complete_type_(Ri* ri, RiPos pos, RiNode* type)
             RI_TODO;
             // uint64_t offset = 0;
             // RiNodeArray* declarations = &type->type.structure.scope->scope.declarations;
-            // for (iptr i = 0; i < declarations->count; ++i) {
+            // for (intptr_t i = 0; i < declarations->count; ++i) {
             //     RiNode* field = declarations->items[i];
 
             //     RI_ASSERT(ri_is_value(field->declaration.node));
             //     // NOTE: sizeof will complete the type as well.
-            //     iptr align = ri_alignof(ri, field->pos, field->declaration.node->value.type);
-            //     offset = iptr_align_forward(offset, align);
+            //     intptr_t align = ri_alignof(ri, field->pos, field->declaration.node->value.type);
+            //     offset = intptr_t_align_forward(offset, align);
             //     field->declaration.offset = offset;
-            //     iptr size = ri_sizeof(ri, field->pos, field->declaration.node->value.type);
+            //     intptr_t size = ri_sizeof(ri, field->pos, field->declaration.node->value.type);
             //     offset += size;
             // }
             // type->type.structure.size = offset;
@@ -348,7 +348,7 @@ ri_retof_(Ri* ri, RiNode* node)
             } break;
 
             case RiNode_Expr_Cast:
-                return array_at(&node->call.arguments, 0);
+                return coarray_at(&node->call.arguments, 0);
             case RiNode_Expr_Call: {
                 RI_CHECK(node->call.func);
                 RiNode* func = ri_get_spec_(node->call.func);
@@ -370,7 +370,7 @@ ri_retof_(Ri* ri, RiNode* node)
                 switch (outputs->count)
                 {
                     case 1: {
-                        RiNode* output = array_at(outputs, 0);
+                        RiNode* output = coarray_at(outputs, 0);
                         RI_CHECK(output->kind == RiNode_Decl);
                         RI_CHECK(output->decl.spec->kind == RiNode_Spec_Var);
                         return ri_get_spec_(output->decl.spec->spec.var.type);
@@ -511,7 +511,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
     } if (ri_is_in(n->kind, RiNode_Expr_Unary)) {
         return ri_walk_(ri, &n->unary.argument, f, context);
     } if (ri_is_in(n->kind, RiNode_Scope)) {
-        array_each(&n->scope.statements, &it) {
+        coarray_each(&n->scope.statements, &it) {
             if (!ri_walk_(ri, &it, f, context)) {
                 return RiWalk_Error;
             }
@@ -537,12 +537,12 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
             }
             return RiWalk_Continue;
         case RiNode_Spec_Type_Func:
-            array_each(&n->spec.type.func.inputs, &it) {
+            coarray_each(&n->spec.type.func.inputs, &it) {
                 if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
                     return RiWalk_Error;
                 }
             }
-            array_each(&n->spec.type.func.outputs, &it) {
+            coarray_each(&n->spec.type.func.outputs, &it) {
                 if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
                     return RiWalk_Error;
                 }
@@ -565,7 +565,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
         case RiNode_Expr_Cast:
         case RiNode_Expr_Call:
             if (ri_walk_(ri, &n->call.func, f, context) != RiWalk_Error) {
-                array_each(&n->call.arguments, &it) {
+                coarray_each(&n->call.arguments, &it) {
                     if (ri_walk_(ri, &it, f, context) == RiWalk_Error) {
                         return RiWalk_Error;
                     }
@@ -584,7 +584,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
                 return RiWalk_Continue;
             }
             return RiWalk_Error;
-            
+
 
         case RiNode_St_Expr:
             return ri_walk_(ri, &n->st_expr, f, context);
@@ -869,7 +869,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
                     return false;
                 }
                 n->decl.state = RiDecl_Resolved;
-                array_push(&n->owner->scope.decl, n);
+                coarray_push(&n->owner->scope.decl, n);
             } return true;
 
             case RiNode_Spec_Type_Func:
@@ -886,7 +886,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
                 if (!ri_resolve_node_(ri, &n->spec.func.type)) {
                     return false;
                 }
-                array_push(&ri->pending, n->spec.func.scope);
+                coarray_push(&ri->pending, n->spec.func.scope);
                 return true;
 
             case RiNode_Spec_Var:
@@ -956,7 +956,7 @@ ri_resolve_decl_(Ri* ri, RiNode** node, void* context, bool recursive)
     RiNode* decl = *node;
 
     RI_CHECK(decl->kind == RiNode_Decl);
-    
+
     RiNode* spec = ri_get_spec_(decl->decl.spec);
 
     decl->decl.spec = spec;
@@ -995,14 +995,14 @@ ri_resolve_symbol_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, void* c
 {
     RiNode* id = *node;
 
-    LOG("id %S", id->symbol.name);
+    COLOG("id %S", id->symbol.name);
 
     RI_CHECK(id->kind == RiNode_Expr_Symbol);
     RI_CHECK(id->symbol.name.items != NULL);
 
     RiNode* decl = NULL;
     while (scope) {
-        decl = map_get(&scope->scope.map, (ValueScalar){ .ptr = id->symbol.name.items }).ptr;
+        decl = comap_get(&scope->scope.map, (CoValS){ .ptr = id->symbol.name.items }).ptr;
         if (decl || !recursive) {
             break;
         }
@@ -1044,7 +1044,7 @@ ri_resolve_select_compound_(Ri* ri, RiNode* type, RiNode* right)
     switch (right->kind)
     {
         case RiNode_Expr_Symbol:
-            child = map_get(&type->spec.type.compound.scope->scope.map, (ValueScalar){ .ptr = right->symbol.name.items }).ptr;
+            child = comap_get(&type->spec.type.compound.scope->scope.map, (CoValS){ .ptr = right->symbol.name.items }).ptr;
             break;
         default:
             RI_UNREACHABLE;
@@ -1123,7 +1123,7 @@ static RIWALK_F(ri_resolve_call_)
     }
 
     RiNode* callable = ri_get_spec_(n->call.func);
-    
+
 repeat:
 
     if (ri_is_in(callable->kind, RiNode_Spec_Type))
@@ -1133,7 +1133,7 @@ repeat:
             return RiWalk_Error;
         }
         n->kind = RiNode_Expr_Cast;
-        array_insert(&n->call.arguments, 0, n->call.func);
+        coarray_insert(&n->call.arguments, 0, n->call.func);
     }
     else switch (callable->kind)
     {
@@ -1237,7 +1237,7 @@ ri_type_patch_cast_const_(Ri* ri, RiNode** expr_, RiNode* type_to)
                 RI_UNREACHABLE;
                 break;
         }
-        
+
         // TODO: We need to be sure that the const type can actually be implicitly cast to `type`.
         return true;
     }
@@ -1408,7 +1408,7 @@ ri_type_patch_node_(Ri* ri, RiNode** node_)
         return ri_type_patch_node_(ri, &node->unary.argument);
     } else if (ri_is_in(node->kind, RiNode_Scope)) {
         RiNode* it;
-        array_eachi(&node->scope.statements, i, &it) {
+        coarray_eachi(&node->scope.statements, i, &it) {
             if (!ri_type_patch_node_(ri, &node->scope.statements.items[i])) {
                 return NULL;
             }
@@ -1458,7 +1458,7 @@ ri_type_patch_node_(Ri* ri, RiNode** node_)
                 RiNodeArray* inputs = &func_type->spec.type.func.inputs;
                 RiNodeArray* arguments = &node->call.arguments;
                 RiNode* it;
-                array_eachi(arguments, i, &it)
+                coarray_eachi(arguments, i, &it)
                 {
                     RiNode* t = ri_type_patch_node_(ri, &arguments->items[i]);
                     if (!t) {
@@ -1466,7 +1466,7 @@ ri_type_patch_node_(Ri* ri, RiNode** node_)
                     }
                     if (ri_is_in(t->kind, RiNode_Spec_Type_Number_None)) {
                         // TODO: Cast constant to type required by input argument at `i`.
-                        RiNode* arg = array_at(inputs, i);
+                        RiNode* arg = coarray_at(inputs, i);
                         RI_CHECK(arg->kind == RiNode_Decl);
                         RI_CHECK(arg->decl.spec->kind == RiNode_Spec_Var);
                         if (!ri_type_patch_cast_const_(ri, &arguments->items[i], ri_get_spec_(arg->decl.spec->spec.var.type))) {
@@ -1603,15 +1603,15 @@ ri_type_patch(Ri* ri, RiNode** node)
 void
 rimodule_purge_(RiModule* module)
 {
-    arena_purge(&module->arena);
-    array_purge(&module->pending);
+    coarena_purge(&module->arena);
+    coarray_purge(&module->pending);
 }
 
 void
-rimodule_init_(Ri* ri, RiModule* module, String path)
+rimodule_init_(Ri* ri, RiModule* module, CoString path)
 {
     memset(module, 0, sizeof(RiModule));
-    arena_init(&module->arena, MEGABYTES(1));
+    coarena_init(&module->arena, COMEGABYTES(1));
 
     module->path = ri_make_id_(ri, path);
 }
@@ -1621,21 +1621,21 @@ rimodule_init_(Ri* ri, RiModule* module, String path)
 //
 
 bool
-ri_load_(Ri* ri, String rel, String path, CharArray* o_path, ByteArray* o_stream)
+ri_load_(Ri* ri, CoString rel, CoString path, CoCharArray* o_path, CoByteSlice* o_stream)
 {
-    array_clear(o_stream);
-    array_clear(o_path);
-    chararray_push_f(o_path, "%S/%S.ri", path, rel);
+    coarray_clear(o_stream);
+    coarray_clear(o_path);
+    cochararray_push_f(o_path, "%S/%S.ri", path, rel);
     RI_LOG("scanning %S", o_path->slice);
-    array_zero_term(o_path);
-    if (file_read(o_stream, o_path->items, NULL)) {
+    coarray_zero_term(o_path);
+    if (cofile_read_c(o_stream, o_path->items) == 0) {
         return true;
     }
     return false;
 }
 
 bool
-ri_load(Ri* ri, String rel, CharArray* o_path, ByteArray* o_stream)
+ri_load(Ri* ri, CoString rel, CoCharArray* o_path, CoByteSlice* o_stream)
 {
     if (ri->module) {
         if (ri_load_(ri, rel, ri_path_get_dir_(ri->module->path), o_path, o_stream)) {
@@ -1652,24 +1652,24 @@ ri_load(Ri* ri, String rel, CharArray* o_path, ByteArray* o_stream)
     // NOTE: The position is meant to be patched from caller.
     ri_error_set_(ri, RiError_ModuleNotFound, RI_POS_OUTSIDE, "unable to find '%S' on paths:", rel);
     if (ri->module) {
-        chararray_push_f(&ri->error.message, "\n- '%S' (current module)", ri_path_get_dir_(ri->module->path));
+        cochararray_push_f(&ri->error.message, "\n- '%S' (current module)", ri_path_get_dir_(ri->module->path));
     }
     for (int i = 0; i < ri->paths.count; ++i) {
-        chararray_push_f(&ri->error.message, "\n- '%S'", ri->paths.items[i]);
+        cochararray_push_f(&ri->error.message, "\n- '%S'", ri->paths.items[i]);
     };
     return false;
 }
 
 RiModule*
-ri_add(Ri* ri, String path)
+ri_add(Ri* ri, CoString path)
 {
-    RiModule* module = arena_push_t(&ri->arena_, RiModule);
+    RiModule* module = coarena_push_t(&ri->arena_, RiModule);
     rimodule_init_(ri, module, path);
     return module;
 }
 
 bool
-ri_parse(Ri* ri, RiModule* module, ByteSlice stream)
+ri_parse(Ri* ri, RiModule* module, CoByteSlice stream)
 {
     RiModule* previous = ri->module;
     ri->module = module;
@@ -1707,23 +1707,23 @@ ri_resolve(Ri* ri, RiModule* module)
 }
 
 RiModule*
-ri_import(Ri* ri, String id)
+ri_import(Ri* ri, CoString id)
 {
-    CharArray path = {0};
-    ByteArray stream = {0};
+    CoCharArray path = {0};
+    CoByteSlice stream = {0};
 
     if (!ri_load(ri, id, &path, &stream)) {
         return NULL;
     }
 
     RiModule* module = ri_add(ri, path.slice);
-    array_purge(&path);
+    coarray_purge(&path);
 
-    if (!ri_parse(ri, module, stream.slice)) {
+    if (!ri_parse(ri, module, stream)) {
         module = NULL;
     }
 
-    array_purge(&stream);
+    coheap_free(stream.items);
 
     if (!ri_resolve(ri, module)) {
         module = NULL;
@@ -1742,61 +1742,61 @@ ri_init(Ri* ri, void* host)
     // RI_LOG_DEBUG("node %d bytes", sizeof(RiNode));
 
     memset(ri, 0, sizeof(Ri));
-    arena_init(&ri->arena_, MEGABYTES(1));
-    intern_init(&ri->intern);
+    coarena_init(&ri->arena_, COMEGABYTES(1));
+    cointern_init(&ri->intern);
 
-    ri->id_func        = ri_make_id_(ri, S("func")).items;
-    ri->id_var         = ri_make_id_(ri, S("var")).items;
-    ri->id_const       = ri_make_id_(ri, S("const")).items;
-    ri->id_type        = ri_make_id_(ri, S("type")).items;
-    ri->id_struct      = ri_make_id_(ri, S("struct")).items;
-    ri->id_union       = ri_make_id_(ri, S("union")).items;
-    ri->id_enum        = ri_make_id_(ri, S("enum")).items;
+    ri->id_func        = ri_make_id_(ri, CoS("func")).items;
+    ri->id_var         = ri_make_id_(ri, CoS("var")).items;
+    ri->id_const       = ri_make_id_(ri, CoS("const")).items;
+    ri->id_type        = ri_make_id_(ri, CoS("type")).items;
+    ri->id_struct      = ri_make_id_(ri, CoS("struct")).items;
+    ri->id_union       = ri_make_id_(ri, CoS("union")).items;
+    ri->id_enum        = ri_make_id_(ri, CoS("enum")).items;
 
-    ri->id_import      = ri_make_id_(ri, S("import")).items;
+    ri->id_import      = ri_make_id_(ri, CoS("import")).items;
 
-    ri->id_return      = ri_make_id_(ri, S("return")).items;
-    ri->id_if          = ri_make_id_(ri, S("if")).items;
-    ri->id_else        = ri_make_id_(ri, S("else")).items;
-    ri->id_for         = ri_make_id_(ri, S("for")).items;
-    ri->id_switch      = ri_make_id_(ri, S("switch")).items;
-    ri->id_case        = ri_make_id_(ri, S("case")).items;
-    ri->id_default     = ri_make_id_(ri, S("default")).items;
-    ri->id_break       = ri_make_id_(ri, S("break")).items;
-    ri->id_continue    = ri_make_id_(ri, S("continue")).items;
-    ri->id_fallthrough = ri_make_id_(ri, S("fallthrough")).items;
+    ri->id_return      = ri_make_id_(ri, CoS("return")).items;
+    ri->id_if          = ri_make_id_(ri, CoS("if")).items;
+    ri->id_else        = ri_make_id_(ri, CoS("else")).items;
+    ri->id_for         = ri_make_id_(ri, CoS("for")).items;
+    ri->id_switch      = ri_make_id_(ri, CoS("switch")).items;
+    ri->id_case        = ri_make_id_(ri, CoS("case")).items;
+    ri->id_default     = ri_make_id_(ri, CoS("default")).items;
+    ri->id_break       = ri_make_id_(ri, CoS("break")).items;
+    ri->id_continue    = ri_make_id_(ri, CoS("continue")).items;
+    ri->id_fallthrough = ri_make_id_(ri, CoS("fallthrough")).items;
 
-    ri->id_true        = ri_make_id_(ri, S("true")).items;
-    ri->id_false       = ri_make_id_(ri, S("false")).items;
-    ri->id_nil         = ri_make_id_(ri, S("nil")).items;
+    ri->id_true        = ri_make_id_(ri, CoS("true")).items;
+    ri->id_false       = ri_make_id_(ri, CoS("false")).items;
+    ri->id_nil         = ri_make_id_(ri, CoS("nil")).items;
 
-    ri->id_underscore  = ri_make_id_(ri, S("_")).items;
+    ri->id_underscore  = ri_make_id_(ri, CoS("_")).items;
 
     ri->scope = ri_make_scope_(&ri->arena_, 0, RI_POS_OUTSIDE, RiNode_Scope_Root);
 
     ri->nodes[RiNode_Spec_Type_None] =
         ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_None);
     // NOTE: ID only really used for debugging.
-    // ri->nodes[RiNode_Spec_Type_None]->spec.id = ri_make_id_(ri, S("none"));
+    // ri->nodes[RiNode_Spec_Type_None]->spec.id = ri_make_id_(ri, CoS("none"));
     ri_add_type_identity_(ri, ri->nodes[RiNode_Spec_Type_None]);
 
     ri->nodes[RiNode_Spec_Type_Number_None_Int] =
         ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Int);
     // NOTE: ID only really used for debugging.
-    // ri->nodes[RiNode_Spec_Type_Number_None_Int]->spec.id = ri_make_id_(ri, S("untyped-int"));
+    // ri->nodes[RiNode_Spec_Type_Number_None_Int]->spec.id = ri_make_id_(ri, CoS("untyped-int"));
 
     ri->nodes[RiNode_Spec_Type_Number_None_Real] =
         ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_Number_None_Real);
     // NOTE: ID only really used for debugging.
-    // ri->nodes[RiNode_Spec_Type_Number_None_Real]->spec.id = ri_make_id_(ri, S("untyped-real"));
+    // ri->nodes[RiNode_Spec_Type_Number_None_Real]->spec.id = ri_make_id_(ri, CoS("untyped-real"));
 
     ri->nodes[RiNode_Spec_Type_Infer] =
         ri_make_node_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, RiNode_Spec_Type_Infer);
     // NOTE: ID only really used for debugging.
-    // ri->nodes[RiNode_Spec_Type_Infer]->spec.id = ri_make_id_(ri, S("infer"));
+    // ri->nodes[RiNode_Spec_Type_Infer]->spec.id = ri_make_id_(ri, CoS("infer"));
 
     #define DECL_TYPE(Name, Type) { \
-        String name = ri_make_id_(ri, S(Name)); \
+        CoString name = ri_make_id_(ri, CoS(Name)); \
         RiNode* spec = ri_make_spec_type_number_(&ri->arena_, ri->scope, \
             RI_POS_OUTSIDE, \
             RiNode_Spec_Type_Number_ ## Type \
@@ -1821,7 +1821,7 @@ ri_init(Ri* ri, void* host)
     #undef DECL_TYPE
 
     ri_scope_set_(ri, ri->scope,
-        ri_make_decl_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, ri_make_id_(ri, S("host")),
+        ri_make_decl_(&ri->arena_, ri->scope, RI_POS_OUTSIDE, ri_make_id_(ri, CoS("host")),
             ri_make_spec_constant_(&ri->arena_, ri->scope,
                 RI_POS_OUTSIDE,
                 ri->nodes[RiNode_Spec_Type_Number_UInt64],
@@ -1836,10 +1836,10 @@ ri_purge(Ri* ri)
 {
     RI_LOG_DEBUG("types %d", ri->types.count);
     RiModule* it;
-    array_each(&ri->modules, &it) {
+    coarray_each(&ri->modules, &it) {
         rimodule_purge_(it);
     }
-    intern_purge(&ri->intern);
-    array_purge(&ri->types);
-    arena_purge(&ri->arena_);
+    cointern_purge(&ri->intern);
+    coarray_purge(&ri->types);
+    coarena_purge(&ri->arena_);
 }
