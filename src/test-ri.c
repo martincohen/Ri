@@ -1,11 +1,13 @@
+#include <co.h>
+
 #if 0
-static inline String
+static inline CoString
 testri_token_to_string(RiToken* token) {
     return S(token->start, token->end - token->start);
 }
 
 static inline bool
-testri_token_equals(RiToken* actual, String expected) {
+testri_token_equals(RiToken* actual, CoString expected) {
     return string_is_equal(testri_token_to_string(actual), expected);
 }
 
@@ -16,7 +18,7 @@ testri_lex_print() {
     ri_stream_set_(&ri, S("func main(a int32)"));
 
     while (ri.token.kind != RiToken_End) {
-        LOG("- '%S'", testri_token_to_string(&ri.token));
+        COLOG("- '%S'", testri_token_to_string(&ri.token));
         ASSERT(ri_lex_next_(&ri));
     }
     // ASSERT(ri_lex(&ri)); testri_token_equals(&ri.token, S("func")); ASSERT(ri.token.kind == RiToken_Keyword_Function);
@@ -27,7 +29,7 @@ testri_lex_print() {
 }
 
 static inline void
-testri_next_token_equals(Ri* ri, RiTokenKind expected_kind, String expected) {
+testri_next_token_equals(Ri* ri, RiTokenKind expected_kind, CoString expected) {
     ASSERT(ri->token.kind == expected_kind);
     ASSERT(testri_token_equals(&ri->token, expected));
     ASSERT(ri_lex_next_(ri));
@@ -75,33 +77,33 @@ typedef enum TestRiMode {
 void
 testri_file_(const char* name, TestRiMode mode)
 {
-    LOG("'%s': testing", name);
+    COLOG("'%s': testing", name);
 
     Ri ri;
     ri_init(&ri, 0);
-    array_push(&ri.paths, String("./src/test"));
+    coarray_push(&ri.paths, CoString("./src/test"));
 
     RiNode* node = NULL;
     {
-        CharArray path_source = {0};
-        chararray_push_f(&path_source, "./src/test/%s.ri", name);
-        array_zero_term(&path_source);
-            ByteArray source = {0};
-            ASSERT(file_read(&source, path_source.items, 0));
+        CoCharArray path_source = {0};
+        cochararray_push_f(&path_source, "./src/test/%s.ri", name);
+        coarray_zero_term(&path_source);
+            CoByteArray source = {0};
+            ASSERT(cofile_read_c(&source, path_source.items, 0));
             node = ri_parse(&ri, S((char*)source.items, source.count), path_source.slice);
-            array_purge(&source);
-        array_purge(&path_source);
+            coarray_purge(&source);
+        coarray_purge(&path_source);
     }
 
-    ByteArray expected = {0};
+    CoByteArray expected = {0};
     {
-        CharArray path_expected = {0};
-        chararray_push_f(&path_expected, "./src/test/%s.expected.lisp", name);
-        array_zero_term(&path_expected);
-        if (!file_read(&expected, path_expected.items, 0)) {
-            LOG("'%s': expected file not found", name);
+        CoCharArray path_expected = {0};
+        cochararray_push_f(&path_expected, "./src/test/%s.expected.lisp", name);
+        coarray_zero_term(&path_expected);
+        if (!cofile_read_c(&expected, path_expected.items, 0)) {
+            COLOG("'%s': expected file not found", name);
         }
-        array_purge(&path_expected);
+        coarray_purge(&path_expected);
     }
 
     if (mode == TestRi_Resolve && node != NULL) {
@@ -114,12 +116,12 @@ testri_file_(const char* name, TestRiMode mode)
     }
 
     {
-        CharArray actual = {0};
+        CoCharArray actual = {0};
 
         if (node != NULL) {
             ri_dump(&ri, node, &actual);
         } else {
-            chararray_push_f(&actual,
+            cochararray_push_f(&actual,
                 "(error\n"
                 "  \"%s.ri\" %d %d\n"
                 "  \"%S\"\n"
@@ -133,55 +135,58 @@ testri_file_(const char* name, TestRiMode mode)
 
         if (expected.items != NULL) {
             if (!string_is_equal(S(expected.items, expected.count), actual.slice)) {
-                LOG("'%s': expected does not match actual", name);
-                LOG("expected:\n%S", expected.slice);
-                LOG("actual:\n%S", actual.slice);
-                LOG("---");
+                COLOG("'%s': expected does not match actual", name);
+                COLOG("expected:\n%S", expected.slice);
+                COLOG("actual:\n%S", actual.slice);
+                COLOG("---");
             }
         }
 
-        CharArray path_recent = {0};
-        chararray_push_f(&path_recent, "./src/test/%s.recent.lisp", name);
-        array_zero_term(&path_recent);
+        CoCharArray path_recent = {0};
+        cochararray_push_f(&path_recent, "./src/test/%s.recent.lisp", name);
+        coarray_zero_term(&path_recent);
         ASSERT(file_write(path_recent.items, actual.items, actual.count, 0));
-        array_purge(&path_recent);
+        coarray_purge(&path_recent);
 
-        array_purge(&actual);
+        coarray_purge(&actual);
     }
 
-    array_purge(&expected);
+    coarray_purge(&expected);
     ri_purge(&ri);
 }
 #endif
 
 void
-testri_load_(String id)
+testri_load_(CoString id)
 {
     Ri ri;
     ri_init(&ri, 0);
-    array_push(&ri.paths, S("./src/test"));
+    coarray_push(&ri.paths, CoS("./src/test"));
 
-    CharArray path = {0};
-    ByteArray stream = {0};
+    CoCharArray path = {0};
+    CoByteSlice stream = {0};
 
     RI_ASSERT(ri_load(&ri, id, &path, &stream));
 
-    RiModule* module = ri_module(&ri, path.slice, id);
+    RiModule* module = ri_add(&ri, path.slice);
 
-    RI_ASSERT(ri_parse(&ri, module, stream.slice));
-    ri_log(module->node);
-
-    // RI_ASSERT(ri_resolve(&ri, module, stream.slice));
+    if (ri_parse(&ri, module, stream)) {
+        ri_log(module->node);
+        RI_ASSERT(ri_resolve(&ri, module));
+        ri_log(module->node);
+    }
 
     ri_error_log(&ri);
-
+    coheap_free(stream.items);
     ri_purge(&ri);
 }
 
 void
 testri_resolve()
 {
-    testri_load_(S("import/main"));
+    // testri_load_(S("import/main"));
+    testri_load_(CoS("struct"));
+    // testri_load_(S("const"));
 
     // testri_file_("string-not-terminated.error", TestRi_Parse);
     // testri_file_("string", TestRi_Parse);

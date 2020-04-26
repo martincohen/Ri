@@ -1,11 +1,11 @@
 #include "ri-ast.h"
 
 RiNode*
-ri_make_node_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
+ri_make_node_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
 {
     RI_CHECK(arena);
     RI_CHECK(owner == NULL || ri_is_in(owner->kind, RiNode_Scope));
-    RiNode* node = arena_push_t(arena, RiNode);
+    RiNode* node = coarena_push_t(arena, RiNode);
     memset(node, 0, sizeof(RiNode));
     node->kind = kind;
     node->owner = owner;
@@ -14,21 +14,10 @@ ri_make_node_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
 }
 
 RiNode*
-ri_make_scope_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
+ri_make_scope_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
 {
     RI_CHECK(ri_is_in(kind, RiNode_Scope));
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
-    return node;
-}
-
-RiNode*
-ri_make_identifier_(Arena* arena, RiNode* owner, RiPos pos, String name)
-{
-    CHECK(name.items != 0);
-    CHECK(name.count > 0);
-    // TODO: Checks.
-    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Id);
-    node->id.name = name;
     return node;
 }
 
@@ -37,10 +26,9 @@ ri_make_identifier_(Arena* arena, RiNode* owner, RiPos pos, String name)
 //
 
 RiNode*
-ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiVarKind kind)
+ri_make_spec_var_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* type, RiVarKind kind)
 {
     RiNode* spec = ri_make_node_(arena, owner, pos, RiNode_Spec_Var);
-    spec->spec.id = id;
     spec->spec.var.type = type;
     spec->spec.var.kind = kind;
     spec->spec.var.slot = RI_INVALID_SLOT;
@@ -52,12 +40,11 @@ ri_make_spec_var_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* typ
 //
 
 RiNode*
-ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiLiteral value)
+ri_make_spec_constant_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* type, RiLiteral value)
 {
     RI_CHECK(type);
     RI_CHECK(ri_is_in(type->kind, RiNode_Spec_Type_Number));
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Constant);
-    node->spec.id = id;
     node->spec.constant.type = type;
     node->spec.constant.value = value;
     return node;
@@ -68,10 +55,9 @@ ri_make_spec_constant_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode
 //
 
 RiNode*
-ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos, String id)
+ri_make_spec_module_(CoArena* arena, RiNode* owner, RiPos pos)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Module);
-    node->spec.id = id;
     return node;
 }
 
@@ -80,7 +66,7 @@ ri_make_spec_module_(Arena* arena, RiNode* owner, RiPos pos, String id)
 //
 
 RiNode*
-ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* type, RiNode* scope)
+ri_make_spec_func_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* type, RiNode* scope)
 {
     RI_CHECK(type);
     RI_CHECK(type->kind == RiNode_Spec_Type_Func);
@@ -88,7 +74,6 @@ ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* ty
     RI_CHECK(scope->kind == RiNode_Scope_Function_Root);
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Func);
-    node->spec.id = id;
     node->spec.func.type = type;
     node->spec.func.scope = scope;
     node->spec.func.slot = RI_INVALID_SLOT;
@@ -100,20 +85,28 @@ ri_make_spec_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* ty
 //
 
 RiNode*
-ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNodeArray inputs, RiNodeArray outputs) {
+ri_make_spec_type_func_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeArray inputs, RiNodeArray outputs) {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Type_Func);
-    node->spec.id = id;
     node->spec.type.func.inputs = inputs;
     node->spec.type.func.outputs = outputs;
     return node;
 }
 
 RiNode*
-ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNodeKind kind)
+ri_make_spec_type_number_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind)
 {
     RI_CHECK(ri_is_in(kind, RiNode_Spec_Type_Number));
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
-    node->spec.id = id;
+    return node;
+}
+
+RiNode*
+ri_make_spec_type_struct_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* scope)
+{
+    RI_CHECK(scope);
+    RI_CHECK(scope->kind == RiNode_Scope_Struct);
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Spec_Type_Struct);
+    node->spec.type.compound.scope = scope;
     return node;
 }
 
@@ -122,14 +115,17 @@ ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, String id, RiN
 //
 
 RiNode*
-ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, RiNode* spec)
+ri_make_decl_(CoArena* arena, RiNode* owner, RiPos pos, CoString id, RiNode* spec)
 {
     RI_CHECK(spec);
-    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || spec->kind == RiNode_Id);
+    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || ri_is_expr(spec->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Decl);
     node->decl.spec = spec;
-    array_push(&node->owner->scope.decl, node);
+    node->decl.id = id;
+    coarray_push(&node->owner->scope.decl, node);
+    RI_CHECK(spec->spec.decl == NULL);
+    spec->spec.decl = node;
     return node;
 }
 
@@ -138,7 +134,37 @@ ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, RiNode* spec)
 //
 
 RiNode*
-ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func)
+ri_make_expr_symbol_(CoArena* arena, RiNode* owner, RiPos pos, CoString name)
+{
+    COCHECK(name.items != 0);
+    COCHECK(name.count > 0);
+    // TODO: Checks.
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Symbol);
+    node->symbol.name = name;
+    return node;
+}
+
+RiNode*
+ri_make_expr_field_(CoArena* arena, RiPos pos, RiNode* parent, RiNode* child)
+{
+    RiNode* owner = NULL;
+    switch (parent->kind) {
+        case RiNode_Spec_Type_Struct:
+            owner = parent->spec.type.compound.scope;
+            break;
+        default:
+            RI_UNREACHABLE;
+            break;
+    }
+
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Field);
+    node->field.parent = parent;
+    node->field.child = child;
+    return node;
+}
+
+RiNode*
+ri_make_expr_call_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* func)
 {
     RI_CHECK(func);
     // TODO: Check func node type?
@@ -149,13 +175,13 @@ ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func)
 }
 
 RiNode*
-ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
+ri_make_expr_binary_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
 {
-    RI_CHECK(ri_is_in(kind, RiNode_Expr_Binary));
+    RI_CHECK(ri_is_in(kind, RiNode_Expr_Binary) || kind == RiNode_Expr_Select);
     RI_CHECK(argument0);
-    RI_CHECK(ri_is_expr_like(argument0->kind));
+    RI_CHECK(ri_is_expr(argument0->kind));
     RI_CHECK(argument1);
-    RI_CHECK(ri_is_expr_like(argument1->kind));
+    RI_CHECK(ri_is_expr(argument1->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
     node->binary.argument0 = argument0;
@@ -164,11 +190,11 @@ ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, Ri
 }
 
 RiNode*
-ri_make_expr_unary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument)
+ri_make_expr_unary_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument)
 {
     RI_CHECK(ri_is_in(kind, RiNode_Expr_Unary));
     RI_CHECK(argument);
-    RI_CHECK(ri_is_expr_like(argument->kind));
+    RI_CHECK(ri_is_expr(argument->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
     node->unary.argument = argument;
@@ -177,13 +203,13 @@ ri_make_expr_unary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiN
 
 
 RiNode*
-ri_make_expr_cast_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr, RiNode* type_to)
+ri_make_expr_cast_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* expr, RiNode* type_to)
 {
     RI_CHECK(expr);
     RI_CHECK(type_to);
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Cast);
-    array_push(&node->call.arguments, type_to);
-    array_push(&node->call.arguments, expr);
+    coarray_push(&node->call.arguments, type_to);
+    coarray_push(&node->call.arguments, expr);
     return node;
 }
 
@@ -192,17 +218,17 @@ ri_make_expr_cast_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr, RiNode*
 //
 
 RiNode*
-ri_make_st_assign_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
+ri_make_st_assign_(CoArena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1)
 {
     RI_CHECK(ri_is_in(kind, RiNode_St_Assign));
     RI_CHECK(argument0);
     RI_CHECK(
-        ri_is_expr_like(argument0->kind) ||
+        ri_is_expr(argument0->kind) ||
         argument0->kind == RiNode_Spec_Var ||
         (argument0->kind == RiNode_Decl && argument0->decl.spec->kind == RiNode_Spec_Var)
     );
     RI_CHECK(argument1);
-    RI_CHECK(ri_is_expr_like(argument1->kind));
+    RI_CHECK(ri_is_expr(argument1->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
     node->binary.argument0 = argument0;
@@ -211,9 +237,9 @@ ri_make_st_assign_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNo
 }
 
 RiNode*
-ri_make_st_expr_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr)
+ri_make_st_expr_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* expr)
 {
-    RI_CHECK(ri_is_expr_like(expr->kind));
+    RI_CHECK(ri_is_expr(expr->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Expr);
     node->st_expr = expr;
@@ -221,16 +247,16 @@ ri_make_st_expr_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr)
 }
 
 RiNode*
-ri_make_st_return_(Arena* arena, RiNode* owner, RiPos pos, RiNode* argument)
+ri_make_st_return_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* argument)
 {
-    RI_CHECK(argument == NULL || ri_is_expr_like(argument->kind));
+    RI_CHECK(argument == NULL || ri_is_expr(argument->kind));
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Return);
     node->st_return.argument = argument;
     return node;
 }
 
 RiNode*
-ri_make_st_if_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* scope)
+ri_make_st_if_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* scope)
 {
     RI_CHECK(condition);
     RI_CHECK(scope);
@@ -244,7 +270,7 @@ ri_make_st_if_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* cond
 }
 
 RiNode*
-ri_make_st_for_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* post, RiNode* scope)
+ri_make_st_for_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* condition, RiNode* post, RiNode* scope)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_For);
     node->st_for.pre = pre;
@@ -255,7 +281,7 @@ ri_make_st_for_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* con
 }
 
 RiNode*
-ri_make_st_switch_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* expr, RiNode* scope)
+ri_make_st_switch_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* expr, RiNode* scope)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Switch);
     node->st_switch.pre = pre;
@@ -265,7 +291,7 @@ ri_make_st_switch_(Arena* arena, RiNode* owner, RiPos pos, RiNode* pre, RiNode* 
 }
 
 RiNode*
-ri_make_st_switch_case_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr)
+ri_make_st_switch_case_(CoArena* arena, RiNode* owner, RiPos pos, RiNode* expr)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Switch_Case);
     node->st_switch_case.expr = expr;
@@ -273,22 +299,100 @@ ri_make_st_switch_case_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr)
 }
 
 RiNode*
-ri_make_st_switch_default_(Arena* arena, RiNode* owner, RiPos pos)
+ri_make_st_switch_default_(CoArena* arena, RiNode* owner, RiPos pos)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Switch_Default);
     return node;
 }
 
 RiNode*
-ri_make_st_break_(Arena* arena, RiNode* owner, RiPos pos)
+ri_make_st_break_(CoArena* arena, RiNode* owner, RiPos pos)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Break);
     return node;
 }
 
 RiNode*
-ri_make_st_continue_(Arena* arena, RiNode* owner, RiPos pos)
+ri_make_st_continue_(CoArena* arena, RiNode* owner, RiPos pos)
 {
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Continue);
     return node;
+}
+
+//
+//
+//
+
+RiNode*
+ri_get_spec_(RiNode* node)
+{
+    RiNode* spec = node;
+    switch (spec->kind)
+    {
+        case RiNode_Expr_Symbol:
+            spec = spec->symbol.spec;
+            RI_CHECK(spec);
+            return ri_get_spec_(spec);
+        case RiNode_Expr_Field:
+            spec = spec->field.child;
+            RI_CHECK(spec);
+            return ri_get_spec_(spec);
+        case RiNode_Decl:
+            spec = spec->decl.spec;
+            RI_CHECK(spec);
+            return ri_get_spec_(spec);
+        default:
+            RI_CHECK(ri_is_in(spec->kind, RiNode_Spec));
+            return spec;
+    }
+}
+
+void
+ri_type_get_title_(RiNode* type, CoCharArray* o_buffer)
+{
+    type = ri_get_spec_(type);
+    if (type->spec.decl != NULL) {
+        cochararray_push(o_buffer, type->spec.decl->decl.id);
+    }
+    else switch (type->kind)
+    {
+        case RiNode_Spec_Type_Number_None_Int: cochararray_push(o_buffer, CoS("untyped-int")); break;
+        case RiNode_Spec_Type_Number_None_Real: cochararray_push(o_buffer, CoS("untyped-real")); break;
+
+        // Use ri->id_* constants.
+        case RiNode_Spec_Type_Number_Bool:    cochararray_push(o_buffer, CoS("bool"));    break;
+        case RiNode_Spec_Type_Number_Int64:   cochararray_push(o_buffer, CoS("int64"));   break;
+        case RiNode_Spec_Type_Number_Int32:   cochararray_push(o_buffer, CoS("int32"));   break;
+        case RiNode_Spec_Type_Number_Int16:   cochararray_push(o_buffer, CoS("int16"));   break;
+        case RiNode_Spec_Type_Number_Int8:    cochararray_push(o_buffer, CoS("int8"));    break;
+        case RiNode_Spec_Type_Number_UInt64:  cochararray_push(o_buffer, CoS("uint64"));  break;
+        case RiNode_Spec_Type_Number_UInt32:  cochararray_push(o_buffer, CoS("uint32"));  break;
+        case RiNode_Spec_Type_Number_UInt16:  cochararray_push(o_buffer, CoS("uint16"));  break;
+        case RiNode_Spec_Type_Number_UInt8:   cochararray_push(o_buffer, CoS("uint8"));   break;
+        case RiNode_Spec_Type_Number_Float64: cochararray_push(o_buffer, CoS("float64")); break;
+        case RiNode_Spec_Type_Number_Float32: cochararray_push(o_buffer, CoS("float32")); break;
+
+        case RiNode_Spec_Type_Func: {
+            cochararray_push(o_buffer, CoS("func ("));
+            RiNode* it;
+            RiNodeArray* args = &type->spec.type.func.inputs;
+            coarray_eachi(args, i, &it) {
+                ri_type_get_title_(it, o_buffer);
+                if (i < args->count - 1) {
+                    cochararray_push(o_buffer, CoS(", "));
+                }
+            }
+            cochararray_push(o_buffer, CoS(") ("));
+            args = &type->spec.type.func.outputs;
+            coarray_eachi(args, i, &it) {
+                ri_type_get_title_(it, o_buffer);
+                if (i < args->count - 1) {
+                    cochararray_push(o_buffer, CoS(", "));
+                }
+            }
+        } break;
+
+        default:
+            RI_UNREACHABLE;
+    }
 }

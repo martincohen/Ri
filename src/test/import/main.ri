@@ -1,3 +1,4 @@
 import "lib";
-var a = lib.variable.x.y;
+var a = lib.variable;
 var b = lib.function();
+var c lib.MyInt = 3;

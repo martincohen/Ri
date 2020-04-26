@@ -10,6 +10,9 @@ func List(comptime T: type) type {
     };
 }
 ```
+## Dependency injection
+- Via context?
+- Via factory?
 
 ## Read
 
@@ -75,6 +78,8 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
 ### AST
 
 - [x] Ignore named return values (we'll do multiple return values and named return values later).
+- [ ] Make `Value_Constant` an expression.
+    - [ ] Get rid of `ri_is_expr`.
 - [ ] C qualifiers:
     - https://www.oracle.com/technetwork/server-storage/solaris10/cc-restrict-139391.html
     - [ ] `const` qualifier
@@ -82,7 +87,6 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     - [ ] `restrict` qualifier
 - [ ] Ri calling convention passing a pointer to current `context` as first argument.
     - This will be simply determined by the signature of the function we're calling, if the signature has `*RiContext` as first argument, we'll inject it as one, otherwise we'll just call using platform's native calling convention.
-- [ ] Rework `constant` node as it's messy now. Probably also add support for initializers.
 - [ ] Merge same types. See assignability rules here: https://golang.org/ref/spec#Assignability
 - [ ] `nil` as predefined identifier
 - [ ] Check for compatible types when casting consts.
@@ -90,6 +94,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
 - [ ] Type checking
     - [x] Basic type checking.
     - [x] Constant implicit casting.
+    - [ ] Node kind checking for specs et al. as we're now allowing expressions instead of just ids.
     - [ ] Type checking for `for`.
     - [ ] Type checking for `if`.
     - [ ] Type checking for `switch`.
@@ -112,7 +117,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     - [x] Typed constants
     - [ ] Named typed constants
     - [ ] Real constants
-    - [ ] String constants
+    - [ ] CoString constants
     - [ ] Struct initializer constants
     - [ ] Union initializer constants
 - [ ] Allow multiple errors in `typecheck` phase.
@@ -158,7 +163,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     [ ] Implement a different type of array, one that keeps it's properties (count, capacity) on the heap (should take less space in `RiNode` union).
 - [ ] Use `longjmp` for error handling. Register arrays to `ri->array`:
 ```c
-    Array(RiNode*) arguments = {0};
+    CoArray(RiNode*) arguments = {0};
     ri_array_push_(ri, &arguments);
     // ... read arguments to the array
     ri_array_pop_(ri);
@@ -182,9 +187,9 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
     - https://golang.org/doc/effective_go.html#interfaces
 - Multiple return values
     - On C side it's returned as `struct`.
-- Slice
+- CoSlice
     - `[]int`
-    - Syntax sugar for `struct { T* items; iptr count; }`
+    - Syntax sugar for `struct { T* items; intptr_t count; }`
 - Do we want `??` operator?
     - https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/operators/null-coalescing-operator
 - Compound math types
@@ -211,7 +216,7 @@ var a []float;
 var b [2]float;
 var c [*]float = { ... };
 
-var a Slice(float);
+var a CoSlice(float);
 var b [2]float;
 b = { 1, 2 };
 var c []float = { ... };
@@ -239,11 +244,11 @@ var c = a + b;
 - Package is a function that returns a struct-like instance.
 ```go
 // lib.ri
-func file_read(path char8[]) uint8[] {
+func cofile_read_c(path char8[]) uint8[] {
     // ...
 }
 
 // main.ri
 import "lib"
-var data = lib.file_read("test.txt");
+var data = lib.cofile_read_c("test.txt");
 ```

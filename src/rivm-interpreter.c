@@ -19,7 +19,7 @@ void
 rivm_exec_init(RiVmExec* context)
 {
     memset(context, 0, sizeof(RiVmExec));
-    iptr capacity = MEGABYTES(1);
+    intptr_t capacity = COMEGABYTES(1);
     context->stack.start = virtual_alloc(0, capacity);
     context->stack.it = context->stack.start;
     context->stack.end = context->stack.it + (capacity / sizeof(RiVmValue));
@@ -36,7 +36,7 @@ rivm_exec_purge(RiVmExec* context)
 //
 
 static inline RiVmValue*
-rivm_stack_push(RiVmStack* stack, iptr count)
+rivm_stack_push(RiVmStack* stack, intptr_t count)
 {
     RI_ASSERT((stack->it + count) <= stack->end);
     RiVmValue* r = stack->it;
@@ -45,7 +45,7 @@ rivm_stack_push(RiVmStack* stack, iptr count)
 }
 
 static inline RiVmValue*
-rivm_stack_pop(RiVmStack* stack, iptr count)
+rivm_stack_pop(RiVmStack* stack, intptr_t count)
 {
     RI_ASSERT((stack->it - count) >= stack->start);
     RiVmValue* r = stack->it;
@@ -110,7 +110,7 @@ rivm_exec_(RiVmExec* context, RiVmValue* stack, RiVmFunc* func)
 
     for (;;)
     {
-        inst = &array_at(&func->code, i);
+        inst = &coarray_at(&func->code, i);
         ++i;
 
         switch (inst->op)

@@ -39,7 +39,7 @@ union RiVmValue
     double f64;
 };
 
-typedef Slice(RiVmValue) RiVmValueSlice;
+typedef CoSlice(RiVmValue) RiVmValueSlice;
 
 enum RiVmOp
 {
@@ -118,8 +118,8 @@ struct RiVmInst
     RiVmParam param2;
 };
 
-typedef Slice(RiVmInst) RiVmInstSlice;
-typedef ArrayWithSlice(RiVmInstSlice) RiVmInstArray;
+typedef CoSlice(RiVmInst) RiVmInstSlice;
+typedef coarray_from_slice(RiVmInstSlice) RiVmInstArray;
 
 //
 //
@@ -132,8 +132,8 @@ struct RiVmFunc
     int debug_outputs_count;
 };
 
-typedef Slice(RiVmFunc*) RiVmFuncSlice;
-typedef ArrayWithSlice(RiVmFuncSlice) RiVmFuncArray;
+typedef CoSlice(RiVmFunc*) RiVmFuncSlice;
+typedef coarray_from_slice(RiVmFuncSlice) RiVmFuncArray;
 
 //
 //
@@ -141,7 +141,7 @@ typedef ArrayWithSlice(RiVmFuncSlice) RiVmFuncArray;
 
 struct RiVmModule
 {
-    Arena arena;
+    CoArena arena;
     RiVmFuncArray func;
 };
 

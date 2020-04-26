@@ -24,18 +24,18 @@ void
 rivm_module_init(RiVmModule* module)
 {
     memset(module, 0, sizeof(RiVmModule));
-    arena_init(&module->arena, KILOBYTES(64));
+    coarena_init(&module->arena, KILOBYTES(64));
 }
 
 void
 rivm_module_purge(RiVmModule* module)
 {
     RiVmFunc* it;
-    array_each(&module->func, &it) {
+    coarray_each(&module->func, &it) {
         heap_free(it->code.items);
     }
-    array_purge(&module->func);
-    arena_purge(&module->arena);
+    coarray_purge(&module->func);
+    coarena_purge(&module->arena);
 }
 
 RiVmFunc*
@@ -43,6 +43,6 @@ rivm_module_push_func(RiVmModule* module, RiVmInstSlice code)
 {
     RiVmFunc* func = rivm_module_push_(module, RiVmFunc);
     func->code = code;
-    array_push(&module->func, func);
+    coarray_push(&module->func, func);
     return func;
 }

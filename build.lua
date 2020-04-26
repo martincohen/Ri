@@ -5,10 +5,8 @@ package.path = table.concat({
     path .. "src/build/lib/?.lua",
 }, ';')
 
-
 local config = {
     release = false,
-    minimal = true,
     path = path,
 }
 
