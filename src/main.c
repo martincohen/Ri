@@ -17,7 +17,7 @@ int main(int argc, char** argv)
 {
     LOG("* %d bytes", sizeof(RiNode));
     RiNode node;
-    LOG(".id %d bytes", sizeof(node.id));
+    LOG(".symbol %d bytes", sizeof(node.symbol));
     LOG(".module %d bytes", sizeof(node.module));
     LOG(".scope %d bytes", sizeof(node.scope));
     LOG(".decl %d bytes", sizeof(node.decl));
@@ -25,7 +25,7 @@ int main(int argc, char** argv)
     LOG(".binary %d bytes", sizeof(node.binary));
     LOG(".unary %d bytes", sizeof(node.unary));
     LOG(".call %d bytes", sizeof(node.call));
-    LOG(".value %d bytes", sizeof(node.value));
+    LOG(".constant %d bytes", sizeof(node.constant));
     LOG(".st_return %d bytes", sizeof(node.st_return));
     LOG(".st_if %d bytes", sizeof(node.st_if));
     LOG(".st_for %d bytes", sizeof(node.st_for));

@@ -118,12 +118,14 @@ RiNode*
 ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* spec)
 {
     RI_CHECK(spec);
-    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || ri_is_expr_like(spec->kind));
+    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec) || ri_is_expr(spec->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Decl);
     node->decl.spec = spec;
     node->decl.id = id;
     array_push(&node->owner->scope.decl, node);
+    RI_CHECK(spec->spec.decl == NULL);
+    spec->spec.decl = node;
     return node;
 }
 
@@ -132,13 +134,13 @@ ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* spec)
 //
 
 RiNode*
-ri_make_expr_id_(Arena* arena, RiNode* owner, RiPos pos, String name)
+ri_make_expr_symbol_(Arena* arena, RiNode* owner, RiPos pos, String name)
 {
     CHECK(name.items != 0);
     CHECK(name.count > 0);
     // TODO: Checks.
-    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Id);
-    node->id.name = name;
+    RiNode* node = ri_make_node_(arena, owner, pos, RiNode_Expr_Symbol);
+    node->symbol.name = name;
     return node;
 }
 
@@ -177,9 +179,9 @@ ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, Ri
 {
     RI_CHECK(ri_is_in(kind, RiNode_Expr_Binary) || kind == RiNode_Expr_Select);
     RI_CHECK(argument0);
-    RI_CHECK(ri_is_expr_like(argument0->kind));
+    RI_CHECK(ri_is_expr(argument0->kind));
     RI_CHECK(argument1);
-    RI_CHECK(ri_is_expr_like(argument1->kind));
+    RI_CHECK(ri_is_expr(argument1->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
     node->binary.argument0 = argument0;
@@ -192,7 +194,7 @@ ri_make_expr_unary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiN
 {
     RI_CHECK(ri_is_in(kind, RiNode_Expr_Unary));
     RI_CHECK(argument);
-    RI_CHECK(ri_is_expr_like(argument->kind));
+    RI_CHECK(ri_is_expr(argument->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
     node->unary.argument = argument;
@@ -221,12 +223,12 @@ ri_make_st_assign_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNo
     RI_CHECK(ri_is_in(kind, RiNode_St_Assign));
     RI_CHECK(argument0);
     RI_CHECK(
-        ri_is_expr_like(argument0->kind) ||
+        ri_is_expr(argument0->kind) ||
         argument0->kind == RiNode_Spec_Var ||
         (argument0->kind == RiNode_Decl && argument0->decl.spec->kind == RiNode_Spec_Var)
     );
     RI_CHECK(argument1);
-    RI_CHECK(ri_is_expr_like(argument1->kind));
+    RI_CHECK(ri_is_expr(argument1->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, kind);
     node->binary.argument0 = argument0;
@@ -237,7 +239,7 @@ ri_make_st_assign_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNo
 RiNode*
 ri_make_st_expr_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr)
 {
-    RI_CHECK(ri_is_expr_like(expr->kind));
+    RI_CHECK(ri_is_expr(expr->kind));
 
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Expr);
     node->st_expr = expr;
@@ -247,7 +249,7 @@ ri_make_st_expr_(Arena* arena, RiNode* owner, RiPos pos, RiNode* expr)
 RiNode*
 ri_make_st_return_(Arena* arena, RiNode* owner, RiPos pos, RiNode* argument)
 {
-    RI_CHECK(argument == NULL || ri_is_expr_like(argument->kind));
+    RI_CHECK(argument == NULL || ri_is_expr(argument->kind));
     RiNode* node = ri_make_node_(arena, owner, pos, RiNode_St_Return);
     node->st_return.argument = argument;
     return node;
@@ -321,15 +323,39 @@ ri_make_st_continue_(Arena* arena, RiNode* owner, RiPos pos)
 //
 //
 
+RiNode*
+ri_get_spec_(RiNode* node)
+{
+    RiNode* spec = node;
+    switch (spec->kind)
+    {
+        case RiNode_Expr_Symbol:
+            spec = spec->symbol.spec;
+            RI_CHECK(spec);
+            return ri_get_spec_(spec);
+        case RiNode_Expr_Field:
+            spec = spec->field.child;
+            RI_CHECK(spec);
+            return ri_get_spec_(spec);
+        case RiNode_Decl:
+            spec = spec->decl.spec;
+            RI_CHECK(spec);
+            return ri_get_spec_(spec);
+        default:
+            RI_CHECK(ri_is_in(spec->kind, RiNode_Spec));
+            return spec;
+    }
+}
+
 void
 ri_type_get_title_(RiNode* type, CharArray* o_buffer)
 {
-    switch (type->kind)
+    type = ri_get_spec_(type);
+    if (type->spec.decl != NULL) {
+        chararray_push(o_buffer, type->spec.decl->decl.id);
+    }
+    else switch (type->kind)
     {
-        case RiNode_Value_Type:
-            chararray_push(o_buffer, type->value.decl->decl.id);
-            break;
-
         case RiNode_Spec_Type_Number_None_Int: chararray_push(o_buffer, S("untyped-int")); break;
         case RiNode_Spec_Type_Number_None_Real: chararray_push(o_buffer, S("untyped-real")); break;
 

@@ -566,15 +566,15 @@ ri_parse_expr_operand_(RiParser* parser)
         case RiToken_Identifier: {
             RiToken token = parser->token;
             if (ri_lex_next_(parser)) {
-                return ri_make_expr_id_(parser->arena, parser->scope, token.pos, token.id);
+                return ri_make_expr_symbol_(parser->arena, parser->scope, token.pos, token.id);
             }
             return NULL;
         } break;
 
         case RiToken_Integer: {
-            RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Value_Constant);
-            node->value.constant.literal.integer = parser->token.integer;
-            node->value.constant.type = parser->ri->nodes[RiNode_Spec_Type_Number_None_Int];
+            RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Expr_Constant);
+            node->constant.literal.integer = parser->token.integer;
+            node->constant.type = parser->ri->nodes[RiNode_Spec_Type_Number_None_Int];
             if (ri_lex_next_(parser)) {
                 return node;
             }
@@ -582,9 +582,9 @@ ri_parse_expr_operand_(RiParser* parser)
         } break;
 
         case RiToken_Real: {
-            RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Value_Constant);
-            node->value.constant.literal.real = parser->token.real;
-            node->value.constant.type = parser->ri->nodes[RiNode_Spec_Type_Number_None_Real];
+            RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Expr_Constant);
+            node->constant.literal.real = parser->token.real;
+            node->constant.type = parser->ri->nodes[RiNode_Spec_Type_Number_None_Real];
             if (ri_lex_next_(parser)) {
                 return node;
             }
@@ -593,7 +593,7 @@ ri_parse_expr_operand_(RiParser* parser)
 
         // case RiToken_String: {
         //     RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Value_Constant);
-        //     node->value.constant.literal.string = parser->token.id;
+        //     node->constant.literal.string = parser->token.id;
         //     // TODO: We'll need array types here.
         // } break;
 
@@ -601,9 +601,10 @@ ri_parse_expr_operand_(RiParser* parser)
 
         case RiToken_Keyword_False:
         case RiToken_Keyword_True: {
-            RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Value_Constant);
-            node->value.constant.literal.boolean = (parser->token.kind == RiToken_Keyword_True);
-            node->value.constant.type = parser->ri->nodes[RiNode_Spec_Type_Number_Bool];
+            // TODO: Make predefined nodes for these.
+            RiNode* node = ri_make_node_(parser->arena, parser->scope, parser->token.pos, RiNode_Expr_Constant);
+            node->constant.literal.boolean = (parser->token.kind == RiToken_Keyword_True);
+            node->constant.type = parser->ri->nodes[RiNode_Spec_Type_Number_Bool];
             if (ri_lex_next_(parser)) {
                 return node;
             }
@@ -893,7 +894,7 @@ ri_parse_type_(RiParser* parser)
             //     }
             //     return NULL;
             // }
-            // return ri_make_expr_id_(parser->arena, parser->scope, token.pos, token.id);
+            // return ri_make_expr_symbol_(parser->arena, parser->scope, token.pos, token.id);
         default:
             ri_error_set_unexpected_token_(parser, &token);
             return NULL;
@@ -1181,22 +1182,22 @@ ri_parse_spec_struct_type_(RiParser* parser)
             }
             // If we have type, we expect the expr_id to be just id.
             // TODO: In future we'll need to be able to have an actual node as decl.id, since now it is only a String.
-            if (expr_id->kind != RiNode_Expr_Id) {
+            if (expr_id->kind != RiNode_Expr_Symbol) {
                 ri_error_set_unexpected_token_(parser, &token_id);
                 return NULL;
             }
-            RI_CHECK(expr_id->kind == RiNode_Expr_Id);
-            id = expr_id->id.name;
+            RI_CHECK(expr_id->kind == RiNode_Expr_Symbol);
+            id = expr_id->symbol.name;
         } else {
             expr_type = expr_id;
             expr_id = NULL;
             switch (expr_type->kind) {
-                case RiNode_Expr_Id:
-                    id = expr_type->id.name;
+                case RiNode_Expr_Symbol:
+                    id = expr_type->symbol.name;
                     break;
                 case RiNode_Expr_Select:
-                    RI_CHECK(expr_type->binary.argument1->kind == RiNode_Expr_Id);
-                    id = expr_type->binary.argument1->id.name;
+                    RI_CHECK(expr_type->binary.argument1->kind == RiNode_Expr_Symbol);
+                    id = expr_type->binary.argument1->symbol.name;
                     break;
                 case RiNode_Spec_Type_Struct:
                     // Nested unnamed struct.
@@ -1411,7 +1412,7 @@ ri_parse_st_if_(RiParser* parser)
                 return NULL;
             }
             condition = condition->st_expr;
-            RI_CHECK(ri_is_expr_like(condition->kind));
+            RI_CHECK(ri_is_expr(condition->kind));
             pre = NULL;
         } break;
 
@@ -1495,7 +1496,7 @@ ri_parse_st_for_(RiParser* parser)
                     return NULL;
                 }
                 condition = condition->st_expr;
-                RI_CHECK(ri_is_expr_like(condition->kind));
+                RI_CHECK(ri_is_expr(condition->kind));
                 pre = NULL;
                 goto skip;
             }
@@ -1588,7 +1589,7 @@ ri_parse_st_switch_(RiParser* parser)
                 return NULL;
             }
             condition = condition->st_expr;
-            RI_CHECK(ri_is_expr_like(condition->kind));
+            RI_CHECK(ri_is_expr(condition->kind));
             pre = NULL;
             goto skip;
         }

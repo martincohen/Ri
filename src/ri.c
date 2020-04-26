@@ -143,7 +143,7 @@ ri_scope_set_(Ri* ri, RiNode* scope, RiNode* decl)
     RI_CHECK(ri_is_in(scope->kind, RiNode_Scope));
     RI_CHECK(decl);
     RI_CHECK(decl->decl.spec);
-    RI_CHECK(ri_is_expr_like(decl->decl.spec->kind) || ri_is_in(decl->decl.spec->kind, RiNode_Spec));
+    RI_CHECK(ri_is_expr(decl->decl.spec->kind) || ri_is_spec(decl->decl.spec->kind));
     RI_CHECK(scope == decl->owner);
     ValueScalar id_ = { .ptr = decl->decl.id.items };
     RiNode* decl_found = map_get(&scope->scope.map, id_).ptr;
@@ -153,26 +153,6 @@ ri_scope_set_(Ri* ri, RiNode* scope, RiNode* decl)
     }
     map_put(&scope->scope.map, id_, (ValueScalar){ .ptr = decl });
     return decl;
-}
-
-//
-//
-//
-
-static RiNode*
-ri_get_spec_(Ri* ri, RiNode* node)
-{
-    RiNode* spec = node;
-    if (ri_is_in(spec->kind, RiNode_Value)) {
-        spec = node->value.spec;
-    } else if (spec->kind == RiNode_Expr_Field) {
-        spec = node->field.child;
-        if (spec->kind == RiNode_Decl) {
-            spec = spec->decl.spec;
-        }
-    }
-    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec));
-    return spec;
 }
 
 //
@@ -195,7 +175,7 @@ ri_type_equal_function_arguments_(Ri* ri, RiNodeArray* a0, RiNodeArray* a1)
         RI_CHECK(it0->decl.spec->kind == RiNode_Spec_Var);
         RI_CHECK(it1->kind == RiNode_Decl);
         RI_CHECK(it1->decl.spec->kind == RiNode_Spec_Var);
-        if (ri_type_equal_(ri, ri_get_spec_(ri, it0->decl.spec->spec.var.type), ri_get_spec_(ri, it1->decl.spec->spec.var.type)) == false) {
+        if (ri_type_equal_(ri, ri_get_spec_(it0->decl.spec->spec.var.type), ri_get_spec_(it1->decl.spec->spec.var.type)) == false) {
             return false;
         }
     }
@@ -347,55 +327,39 @@ ri_retof_(Ri* ri, RiNode* node)
         // RI_ASSERT(ri_is_rt(node));
         switch (node->kind)
         {
-            // Ct
-
             case RiNode_Spec_Var:
-                return ri_get_spec_(ri, node->spec.var.type);
+                return ri_get_spec_(node->spec.var.type);
             case RiNode_Spec_Func:
-                return ri_get_spec_(ri, node->spec.func.type);
+                return ri_get_spec_(node->spec.func.type);
             case RiNode_Spec_Constant:
-                return ri_get_spec_(ri, node->spec.constant.type);
+                return ri_get_spec_(node->spec.constant.type);
 
 
-            // Rt
-
-            case RiNode_Value_Var:
-                // if (node->value.spec->kind == RiNode_Spec_Var) {
-                //     return node->value.type;
-                // } else {
-                //     ri_error_set_(ri, RiError_UnexpectedValue, node->pos, "variable expected");
-                //     return NULL;
-                // }
-                RI_CHECK(node->value.spec->kind == RiNode_Spec_Var);
-                return ri_get_spec_(ri, node->value.spec->spec.var.type);
-            case RiNode_Value_Constant:
-                RI_CHECK(node->value.constant.type);
-                return ri_get_spec_(ri, node->value.constant.type);
-            case RiNode_Value_Func:
-                RI_CHECK(node->value.spec->kind == RiNode_Spec_Func);
-                return ri_get_spec_(ri, node->value.spec->spec.func.type);
+            case RiNode_Expr_Symbol:
+                return ri_retof_(ri, node->symbol.spec);
 
             case RiNode_Expr_Field: {
                 RI_CHECK(node->field.child->kind == RiNode_Decl);
-                RiNode* var = node->field.child->decl.spec;
-                RI_CHECK(var->kind == RiNode_Spec_Var);
-                RI_CHECK(var->spec.var.kind == RiVar_Field);
-                return ri_get_spec_(ri, var->spec.var.type);
+                return ri_retof_(ri, node->field.child->decl.spec);
+            } break;
+
+            case RiNode_Expr_Constant: {
+                return ri_get_spec_(node->constant.type);
             } break;
 
             case RiNode_Expr_Cast:
                 return array_at(&node->call.arguments, 0);
             case RiNode_Expr_Call: {
                 RI_CHECK(node->call.func);
-                RiNode* func = ri_get_spec_(ri, node->call.func);
+                RiNode* func = ri_get_spec_(node->call.func);
                 RiNode* func_type = NULL;
                 switch (func->kind)
                 {
                     case RiNode_Spec_Var:
-                        func_type = ri_get_spec_(ri, func->spec.var.type);
+                        func_type = ri_get_spec_(func->spec.var.type);
                         break;
                     case RiNode_Spec_Func:
-                        func_type = ri_get_spec_(ri, func->spec.func.type);
+                        func_type = ri_get_spec_(func->spec.func.type);
                         break;
                     default:
                         RI_UNREACHABLE;
@@ -409,7 +373,7 @@ ri_retof_(Ri* ri, RiNode* node)
                         RiNode* output = array_at(outputs, 0);
                         RI_CHECK(output->kind == RiNode_Decl);
                         RI_CHECK(output->decl.spec->kind == RiNode_Spec_Var);
-                        return ri_get_spec_(ri, output->decl.spec->spec.var.type);
+                        return ri_get_spec_(output->decl.spec->spec.var.type);
                     }
                     case 0:
                         return ri->nodes[RiNode_Spec_Type_None];
@@ -590,19 +554,14 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
             return RiWalk_Continue;
         case RiNode_Spec_Module:
             return RiWalk_Continue;
-        case RiNode_Value_Var:
-            return ri_walk_(ri, &n->value.spec, f, context);
-        case RiNode_Value_Func:
-            return ri_walk_(ri, &n->value.spec, f, context);
-        case RiNode_Value_Type:
-            return ri_walk_(ri, &n->value.spec, f, context);
-        case RiNode_Value_Constant:
-            return ri_walk_(ri, &n->value.constant.type, f, context);
-        case RiNode_Value_Module:
-            return ri_walk_(ri, &n->value.spec, f, context);
 
-        case RiNode_Expr_Id:
+        case RiNode_Expr_Symbol:
+            if (n->symbol.spec) {
+                return ri_walk_(ri, &n->symbol.spec, f, context);
+            }
             return RiWalk_Continue;
+        case RiNode_Expr_Constant:
+            return ri_walk_(ri, &n->constant.type, f, context);
         case RiNode_Expr_Cast:
         case RiNode_Expr_Call:
             if (ri_walk_(ri, &n->call.func, f, context) != RiWalk_Error) {
@@ -694,7 +653,7 @@ ri_walk_(Ri* ri, RiNode** node, RiWalkF* f, void* context)
 #define RI_RESOLVE_F_(Name) bool Name(Ri* ri, RiNode** node)
 typedef RI_RESOLVE_F_(RiResolveF_);
 
-static RI_RESOLVE_F_(ri_resolve_identifier_);
+static RI_RESOLVE_F_(ri_resolve_symbol_);
 static RI_RESOLVE_F_(ri_resolve_node_);
 
 static bool
@@ -901,7 +860,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
                 return ri_resolve_slice_with_(ri, n->scope.statements.slice, &ri_resolve_node_);
 
             case RiNode_Id:
-                return ri_resolve_identifier_(ri, node);
+                return ri_resolve_symbol_(ri, node);
 
             case RiNode_Decl: {
                 RI_CHECK(n->decl.state == RiDecl_Unresolved);
@@ -939,7 +898,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
             case RiNode_Value_Type:
             case RiNode_Value_Func:
             case RiNode_Value_Var:
-                // NOTE: Nothing to do, these come resolved from ri_resolve_identifier_().
+                // NOTE: Nothing to do, these come resolved from ri_resolve_symbol_().
                 return true;
 
             case RiNode_Expr_Call: {
@@ -989,7 +948,7 @@ RI_RESOLVE_F_(ri_resolve_node_)
 #endif
 
 static RIWALK_F(ri_resolve_node_);
-static RiWalkResult ri_resolve_identifier_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, void* context);
+static RiWalkResult ri_resolve_symbol_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, void* context);
 
 static RiWalkResult
 ri_resolve_decl_(Ri* ri, RiNode** node, void* context, bool recursive)
@@ -998,11 +957,7 @@ ri_resolve_decl_(Ri* ri, RiNode** node, void* context, bool recursive)
 
     RI_CHECK(decl->kind == RiNode_Decl);
     
-    RiNode* spec = decl->decl.spec;
-    if (ri_is_in(spec->kind, RiNode_Value)) {
-        spec = spec->value.spec;
-    }
-    RI_CHECK(ri_is_in(spec->kind, RiNode_Spec));
+    RiNode* spec = ri_get_spec_(decl->decl.spec);
 
     decl->decl.spec = spec;
 
@@ -1036,18 +991,18 @@ ri_resolve_decl_(Ri* ri, RiNode** node, void* context, bool recursive)
 // 4. Mutates identifier node to a spec taken from the resolved declaration.
 //
 static RiWalkResult
-ri_resolve_identifier_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, void* context)
+ri_resolve_symbol_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, void* context)
 {
     RiNode* id = *node;
 
-    LOG("id %S", id->id.name);
+    LOG("id %S", id->symbol.name);
 
-    RI_CHECK(id->kind == RiNode_Expr_Id);
-    RI_CHECK(id->id.name.items != NULL);
+    RI_CHECK(id->kind == RiNode_Expr_Symbol);
+    RI_CHECK(id->symbol.name.items != NULL);
 
     RiNode* decl = NULL;
     while (scope) {
-        decl = map_get(&scope->scope.map, (ValueScalar){ .ptr = id->id.name.items }).ptr;
+        decl = map_get(&scope->scope.map, (ValueScalar){ .ptr = id->symbol.name.items }).ptr;
         if (decl || !recursive) {
             break;
         }
@@ -1055,15 +1010,15 @@ ri_resolve_identifier_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, voi
     }
 
     if (decl == NULL) {
-        ri_error_set_(ri, RiError_NotDeclared, id->pos, "'%S' was not declared", id->id.name);
+        ri_error_set_(ri, RiError_NotDeclared, id->pos, "'%S' was not declared", id->symbol.name);
         return RiWalk_Error;
     }
 
     RI_CHECK(decl->owner == scope);
     RI_CHECK(decl->kind == RiNode_Decl);
 
-    if (decl->decl.spec->kind == RiNode_Expr_Id) {
-        if (ri_resolve_identifier_(ri, &decl->decl.spec, decl->decl.spec->owner, true, context) == RiWalk_Error) {
+    if (decl->decl.spec->kind == RiNode_Expr_Symbol) {
+        if (ri_resolve_symbol_(ri, &decl->decl.spec, decl->decl.spec->owner, true, context) == RiWalk_Error) {
             return RiWalk_Error;
         }
     }
@@ -1072,42 +1027,8 @@ ri_resolve_identifier_(Ri* ri, RiNode** node, RiNode* scope, bool recursive, voi
         return RiWalk_Error;
     }
 
-    switch (decl->decl.spec->kind)
-    {
-        case RiNode_Spec_Var:
-            id->kind = RiNode_Value_Var;
-            id->value.spec = decl->decl.spec;
-            id->value.decl = decl;
-            // id->value.type = ri_get_spec_(ri, decl->decl.spec->spec.var.type);
-            break;
+    id->symbol.spec = decl->decl.spec;
 
-        case RiNode_Spec_Constant:
-            id->kind = RiNode_Value_Constant;
-            id->value.spec = decl->decl.spec;
-            id->value.decl = decl;
-            id->value.constant.type = ri_get_spec_(ri, decl->decl.spec->spec.constant.type);
-            id->value.constant.literal = decl->decl.spec->spec.constant.value;
-            break;
-
-        case RiNode_Spec_Func:
-            id->kind = RiNode_Value_Func;
-            id->value.spec = decl->decl.spec;
-            id->value.decl = decl;
-            break;
-
-        case RiNode_Spec_Module:
-            id->kind = RiNode_Value_Module;
-            id->value.spec = decl->decl.spec;
-            id->value.decl = decl;
-            break;
-
-        default:
-            RI_CHECK(ri_is_in(decl->decl.spec->kind, RiNode_Spec_Type));
-            id->kind = RiNode_Value_Type;
-            id->value.spec = decl->decl.spec;
-            id->value.decl = decl;
-    }
-    RI_CHECK(ri_is_in(id->value.spec->kind, RiNode_Spec));
 
     *node = id;
 
@@ -1122,8 +1043,8 @@ ri_resolve_select_compound_(Ri* ri, RiNode* type, RiNode* right)
     RiNode* child = NULL;
     switch (right->kind)
     {
-        case RiNode_Expr_Id:
-            child = map_get(&type->spec.type.compound.scope->scope.map, (ValueScalar){ .ptr = right->id.name.items }).ptr;
+        case RiNode_Expr_Symbol:
+            child = map_get(&type->spec.type.compound.scope->scope.map, (ValueScalar){ .ptr = right->symbol.name.items }).ptr;
             break;
         default:
             RI_UNREACHABLE;
@@ -1131,7 +1052,7 @@ ri_resolve_select_compound_(Ri* ri, RiNode* type, RiNode* right)
     }
     if (child == NULL) {
         // TODO: Add parent type name/spec.
-        ri_error_set_(ri, RiError_NotDeclared, right->pos, "'%S' is defined", right->id.name);
+        ri_error_set_(ri, RiError_NotDeclared, right->pos, "'%S' is defined", right->symbol.name);
         return NULL;
     }
 
@@ -1162,21 +1083,21 @@ ri_resolve_select_(Ri* ri, RiNode** node, void* context)
         return false;
     }
 
-    RiNode* left = ri_get_spec_(ri, n->binary.argument0);
+    RiNode* left = ri_get_spec_(n->binary.argument0);
     RiNode* right = n->binary.argument1;
     switch (left->kind)
     {
         case RiNode_Spec_Module: {
-            RI_CHECK(right->kind == RiNode_Expr_Id);
+            RI_CHECK(right->kind == RiNode_Expr_Symbol);
             RiNode* module = left->spec.module;
             RiNode* scope = module->module.scope;
-            if (ri_resolve_identifier_(ri, &right, scope, false, context) == RiWalk_Error) {
+            if (ri_resolve_symbol_(ri, &right, scope, false, context) == RiWalk_Error) {
                 return false;
             }
             *node = right;
         } break;
         case RiNode_Spec_Var: {
-            RiNode* type = ri_get_spec_(ri, left->spec.var.type);
+            RiNode* type = ri_get_spec_(left->spec.var.type);
             if (type->kind != RiNode_Spec_Type_Struct) {
                 ri_error_set_(ri, RiError_Type, left->spec.var.type->pos, "module, struct or union expected");
                 return false;
@@ -1201,16 +1122,11 @@ static RIWALK_F(ri_resolve_call_)
         return RiWalk_Error;
     }
 
-    RiNode* callable = n->call.func;
+    RiNode* callable = ri_get_spec_(n->call.func);
     
 repeat:
 
-    if (ri_is_in(callable->kind, RiNode_Value) || callable->kind == RiNode_Expr_Field)
-    {
-        callable = ri_get_spec_(ri, n->call.func);
-        goto repeat;
-    }
-    else if (ri_is_in(callable->kind, RiNode_Spec_Type))
+    if (ri_is_in(callable->kind, RiNode_Spec_Type))
     {
         if (n->call.arguments.count != 1) {
             ri_error_set_(ri, RiError_Argument, n->pos, "cast requires 1 argument, %d provided", n->call.arguments.count);
@@ -1242,14 +1158,17 @@ static RIWALK_F(ri_resolve_node_)
     }
     else switch (n->kind)
     {
-        case RiNode_Expr_Id:
-            return ri_resolve_identifier_(ri, node, n->owner, true, context);
+        case RiNode_Expr_Symbol:
+            return ri_resolve_symbol_(ri, node, n->owner, true, context);
 
         case RiNode_Expr_Select: {
             if (ri_resolve_select_(ri, node, context) == false) {
                 return RiWalk_Error;
             }
         } return RiWalk_Skip;
+
+        case RiNode_Expr_Field:
+            return RiWalk_Skip;
 
         case RiNode_Expr_Call: {
             return ri_resolve_call_(ri, node, context);
@@ -1288,14 +1207,14 @@ ri_type_patch_cast_const_(Ri* ri, RiNode** expr_, RiNode* type_to)
         );
     } else if (ri_is_in(expr->kind, RiNode_Expr_Unary)) {
         return ri_type_patch_cast_const_(ri, &expr->unary.argument, type_to);
-    } else if (expr->kind == RiNode_Value_Constant) {
-        RI_ASSERT(ri_is_in(expr->value.constant.type->kind, RiNode_Spec_Type_Number_None));
-        RiNode* type_from = expr->value.constant.type;
+    } else if (expr->kind == RiNode_Expr_Constant) {
+        RI_ASSERT(ri_is_in(expr->constant.type->kind, RiNode_Spec_Type_Number_None));
+        RiNode* type_from = expr->constant.type;
         switch (type_from->kind)
         {
             case RiNode_Spec_Type_Number_None_Int:
                 if (ri_is_in(type_to->kind, RiNode_Spec_Type_Number_Int)) {
-                    expr->value.constant.type = type_to;
+                    expr->constant.type = type_to;
                 } else if (ri_is_in(type_to->kind, RiNode_Spec_Type_Number_Float)) {
                     *expr_ = ri_make_expr_cast_(&ri->module->arena, expr->owner, expr->pos, expr, type_to);
                 } else {
@@ -1305,7 +1224,7 @@ ri_type_patch_cast_const_(Ri* ri, RiNode** expr_, RiNode* type_to)
                 break;
             case RiNode_Spec_Type_Number_None_Real:
                 if (ri_is_in(type_to->kind, RiNode_Spec_Type_Number_Float)) {
-                    expr->value.constant.type = type_to;
+                    expr->constant.type = type_to;
                 } else if (ri_is_in(type_to->kind, RiNode_Spec_Type_Number_Int)) {
                     *expr_ = ri_make_expr_cast_(&ri->module->arena, expr->owner, expr->pos, expr, type_to);
                 } else {
@@ -1347,7 +1266,7 @@ ri_type_patch_expr_cast_(Ri* ri, RiNode** node_)
     RiNode* node = *node_;
     RI_CHECK(node->call.arguments.count == 2);
 
-    RiNode* type_to = ri_get_spec_(ri, node->call.arguments.items[0]);
+    RiNode* type_to = ri_get_spec_(node->call.arguments.items[0]);
     RiNode* type_from = ri_type_patch_node_(ri, &node->call.arguments.items[1]);
 
     // TODO: Warn if the cast is something unexpected (float to pointer, func to func of incompatible type)
@@ -1521,15 +1440,15 @@ ri_type_patch_node_(Ri* ri, RiNode** node_)
                 return ri_type_patch_expr_cast_(ri, node_);
 
             case RiNode_Expr_Call: {
-                RiNode* func = ri_get_spec_(ri, node->call.func);
+                RiNode* func = ri_get_spec_(node->call.func);
                 RiNode* func_type = 0;
                 switch (func->kind)
                 {
                     case RiNode_Spec_Func:
-                        func_type = ri_get_spec_(ri, func->spec.func.type);
+                        func_type = ri_get_spec_(func->spec.func.type);
                         break;
                     case RiNode_Spec_Var:
-                        func_type = ri_get_spec_(ri, func->spec.var.type);
+                        func_type = ri_get_spec_(func->spec.var.type);
                         break;
                     default:
                         RI_UNREACHABLE;
@@ -1550,7 +1469,7 @@ ri_type_patch_node_(Ri* ri, RiNode** node_)
                         RiNode* arg = array_at(inputs, i);
                         RI_CHECK(arg->kind == RiNode_Decl);
                         RI_CHECK(arg->decl.spec->kind == RiNode_Spec_Var);
-                        if (!ri_type_patch_cast_const_(ri, &arguments->items[i], ri_get_spec_(ri, arg->decl.spec->spec.var.type))) {
+                        if (!ri_type_patch_cast_const_(ri, &arguments->items[i], ri_get_spec_(arg->decl.spec->spec.var.type))) {
                             return NULL;
                         }
                     }

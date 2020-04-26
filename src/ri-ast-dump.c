@@ -47,7 +47,7 @@ ri_dump_block_(RiDump_* D, RiNode* node, const char* block)
 }
 
 static const char* RI_NODEKIND_NAMES_[RiNode_COUNT__] = {
-    [RiNode_Value_Constant] = "const",
+    [RiNode_Expr_Constant] = "const",
     [RiNode_Expr_Select] = "expr-select",
     [RiNode_Expr_Cast] = "expr-cast",
     [RiNode_Expr_Unary_Positive] = "expr-positive",
@@ -84,10 +84,7 @@ static const char* RI_NODEKIND_NAMES_[RiNode_COUNT__] = {
     [RiNode_St_Assign_Mod] = "st-assign-mod",
     [RiNode_St_Assign_And] = "st-assign-and",
     [RiNode_St_Assign_Or] = "st-assign-or",
-    [RiNode_St_Assign_Xor] = "st-assign-xor",
-    [RiNode_Value_Var] = "value-var",
-    [RiNode_Value_Func] = "value-func",
-    [RiNode_Value_Type] = "value-type",
+    [RiNode_St_Assign_Xor] = "st-assign-xor"
 };
 
 static void
@@ -127,20 +124,24 @@ ri_dump_(RiDump_* D, RiNode* node)
                 break;
         }
     } else if (ri_is_in(node->kind, RiNode_Scope)) {
-        riprinter_print(&D->printer, "(scope\n\t");
-        if (node->scope.decl.count) {
-            array_each(&node->scope.decl, &it) {
-                ri_dump_(D, it);
-            }
-        }
-        riprinter_print(&D->printer, "(code");
         if (is_logged) {
-            riprinter_print(&D->printer, " (recursive)");
+            riprinter_print(&D->printer, "(scope (RECURSIVE))\n");    
         } else {
-            ri_dump_slice_(D, &node->scope.statements.slice, NULL);
+            riprinter_print(&D->printer, "(scope\n\t");
+            if (node->scope.decl.count) {
+                array_each(&node->scope.decl, &it) {
+                    ri_dump_(D, it);
+                }
+            }
+            riprinter_print(&D->printer, "(code");
+            if (is_logged) {
+                riprinter_print(&D->printer, " (recursive)");
+            } else {
+                ri_dump_slice_(D, &node->scope.statements.slice, NULL);
+            }
+            riprinter_print(&D->printer, ")\n");
+            riprinter_print(&D->printer, "\b)\n");
         }
-        riprinter_print(&D->printer, ")\n");
-        riprinter_print(&D->printer, "\b)\n");
     } else {
         switch (node->kind)
         {
@@ -156,8 +157,8 @@ ri_dump_(RiDump_* D, RiNode* node)
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 
-            case RiNode_Expr_Id: {
-                riprinter_print(&D->printer, "(expr-id '%S')\n", node->id.name);
+            case RiNode_Expr_Symbol: {
+                riprinter_print(&D->printer, "(expr-id '%S')\n", node->symbol.name);
             } break;
 
             case RiNode_Expr_Field: {
@@ -239,56 +240,41 @@ ri_dump_(RiDump_* D, RiNode* node)
                 riprinter_print(&D->printer, ("(st-continue)\n"));
             } break;
 
-            case RiNode_Value_Func:
-            case RiNode_Value_Var: {
-                riprinter_print(&D->printer, "(%s\n\t", RI_NODEKIND_NAMES_[node->kind]);
-                ri_dump_(D, node->value.spec);
-                riprinter_print(&D->printer, "\b)\n");
-            } break;
-
-            case RiNode_Value_Type: {
-                riprinter_print(&D->printer, "(%s ", RI_NODEKIND_NAMES_[node->kind]);
-                ri_type_get_title_(node, D->printer.out);
-                riprinter_print(&D->printer, "\n\t");
-                ri_dump_(D, node->value.spec);
-                riprinter_print(&D->printer, "\b)\n");
-            } break;
-
-            case RiNode_Value_Constant: {
+            case RiNode_Expr_Constant: {
                 riprinter_print(&D->printer, "(const ");
-                switch (node->value.constant.type->kind) {
+                switch (node->constant.type->kind) {
                     case RiNode_Spec_Type_Number_Int8:
                     case RiNode_Spec_Type_Number_Int16:
                     case RiNode_Spec_Type_Number_Int32:
                     case RiNode_Spec_Type_Number_UInt8:
                     case RiNode_Spec_Type_Number_UInt16:
                     case RiNode_Spec_Type_Number_UInt32:
-                        riprinter_print(&D->printer, "%d\n\t", node->value.constant.literal.integer);
+                        riprinter_print(&D->printer, "%d\n\t", node->constant.literal.integer);
                         break;
 
                     case RiNode_Spec_Type_Number_UInt64:
                     case RiNode_Spec_Type_Number_None_Int:
-                        riprinter_print(&D->printer, "%"PRIu64"\n\t", node->value.constant.literal.integer);
+                        riprinter_print(&D->printer, "%"PRIu64"\n\t", node->constant.literal.integer);
                         break;
                     case RiNode_Spec_Type_Number_Float32:
                     case RiNode_Spec_Type_Number_Float64:
                     case RiNode_Spec_Type_Number_None_Real:
-                        riprinter_print(&D->printer, "%f\n\t", node->value.constant.literal.real);
+                        riprinter_print(&D->printer, "%f\n\t", node->constant.literal.real);
                         break;
                     case RiNode_Spec_Type_Number_Bool:
                         riprinter_print(&D->printer, "%s\n\t",
-                            node->value.constant.literal.boolean ? "true" : "false");
+                            node->constant.literal.boolean ? "true" : "false");
                         break;
 
                     case RiNode_Spec_Type_Number_Int64:
-                        riprinter_print(&D->printer, "%"PRIi64"\n\t", node->value.constant.literal.integer);
+                        riprinter_print(&D->printer, "%"PRIi64"\n\t", node->constant.literal.integer);
                         break;
 
                     default:
                         riprinter_print(&D->printer, "UNKNOWN\n\t");
                         break;
                 }
-                ri_dump_(D, node->value.constant.type);
+                ri_dump_(D, node->constant.type);
                 riprinter_print(&D->printer, "\b)\n");
             } break;
 

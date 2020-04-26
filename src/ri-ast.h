@@ -112,21 +112,15 @@ enum RiNodeKind
         RiNode_Spec_Type_LAST__,
     RiNode_Spec_LAST__,
 
-    // TODO: Practically the same as RiNode_Expr_Field, except Field does not hold a reference to type.
-    RiNode_Value_FIRST__,
-        RiNode_Value_Var,
-        RiNode_Value_Func,
-        RiNode_Value_Type,
-        RiNode_Value_Constant,
-        RiNode_Value_Module,
-    RiNode_Value_LAST__,
-
     RiNode_Expr_FIRST__,
-        RiNode_Expr_Id,
+        RiNode_Expr_Symbol,
         RiNode_Expr_Select,
         RiNode_Expr_Field,
+        RiNode_Expr_Constant,
         RiNode_Expr_Call,
         RiNode_Expr_Cast,
+
+        // TODO: As macro
         RiNode_Expr_AddrOf,
 
         RiNode_Expr_Unary_FIRST__,
@@ -212,8 +206,14 @@ static inline ri_is_in_(RiNodeKind kind, RiNodeKind first, RiNodeKind last) {
 #define ri_is_in(NodeKind, Prefix) \
     ri_is_in_(NodeKind, Prefix ## _FIRST__, Prefix ## _LAST__)
 
-#define ri_is_expr_like(NodeKind) \
-    (ri_is_in(NodeKind, RiNode_Expr) || ((NodeKind) == RiNode_Value_Constant))
+#define ri_is_expr(NodeKind) \
+    (ri_is_in(NodeKind, RiNode_Expr))
+
+#define ri_is_spec(NodeKind) \
+    (ri_is_in(NodeKind, RiNode_Spec))
+
+#define ri_is_type(NodeKind) \
+    (ri_is_in(NodeKind, RiNode_Spec_Type))
 
 //
 //
@@ -252,7 +252,9 @@ struct RiNode
     union {
         struct {
             String name;
-        } id;
+            // When resolved, spec is filled, otherwise it's NULL.
+            RiNode* spec;
+        } symbol;
 
         struct {
             RiNode* scope;
@@ -272,6 +274,7 @@ struct RiNode
 
         struct {
             RiSpecState state;
+            RiNode* decl;
             union {
                 // When module is loaded, here we keep the reference to RiNode_Module node.
                 RiNode* module;
@@ -345,21 +348,13 @@ struct RiNode
             RiNodeArray arguments;
         } call;
 
-        // Value nodes replace Id nodes at resolve phase.
-        // A constant or reference to a spec used in expressions (var, func, type,...)
         struct {
-            RiNode* spec;
-            RiNode* decl;
-            // TODO: Split this up, or implement all constants as specs?
-            struct {
-                RiNode* type;
-                // Used for inline constants, otherwise spec is not NULL.
-                // All literals are resolved to their final type in resolve phase.
-                // For untyped constants, spec == NULL and type == NULL.
-                RiLiteral literal;
-            } constant;
-        } value;
-
+            RiNode* type;
+            // Used for inline constants, otherwise spec is not NULL.
+            // All literals are resolved to their final type in resolve phase.
+            // For untyped constants, spec == NULL and type == NULL.
+            RiLiteral literal;
+        } constant;
 
         // Statements
 
@@ -417,7 +412,7 @@ RiNode* ri_make_spec_type_func_(Arena* arena, RiNode* owner, RiPos pos, RiNodeAr
 RiNode* ri_make_spec_type_number_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind);
 RiNode* ri_make_spec_type_struct_(Arena* arena, RiNode* owner, RiPos pos, RiNode* scope);
 RiNode* ri_make_decl_(Arena* arena, RiNode* owner, RiPos pos, String id, RiNode* spec);
-RiNode* ri_make_expr_id_(Arena* arena, RiNode* owner, RiPos pos, String name);
+RiNode* ri_make_expr_symbol_(Arena* arena, RiNode* owner, RiPos pos, String name);
 RiNode* ri_make_expr_field_(Arena* arena, RiPos pos, RiNode* parent, RiNode* child);
 RiNode* ri_make_expr_call_(Arena* arena, RiNode* owner, RiPos pos, RiNode* func);
 RiNode* ri_make_expr_binary_(Arena* arena, RiNode* owner, RiPos pos, RiNodeKind kind, RiNode* argument0, RiNode* argument1);
@@ -433,4 +428,6 @@ RiNode* ri_make_st_switch_default_(Arena* arena, RiNode* owner, RiPos pos);
 RiNode* ri_make_st_break_(Arena* arena, RiNode* owner, RiPos pos);
 RiNode* ri_make_st_continue_(Arena* arena, RiNode* owner, RiPos pos);
 
+// Extracts Spec from Symbol, Field or Decl.
+RiNode* ri_get_spec_(RiNode* node);
 void ri_type_get_title_(RiNode* type, CharArray* o_buffer);

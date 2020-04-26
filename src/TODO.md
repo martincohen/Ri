@@ -1,5 +1,9 @@
 # To do (messy)
 
+## Dependency injection
+- Via context?
+- Via factory?
+
 ## Read
 
 - https://github.com/luciotato/golang-notes/blob/master/OOP.md
@@ -65,7 +69,7 @@ GOAL: Compiles into three-address code, interprets three-address code in a strai
 
 - [x] Ignore named return values (we'll do multiple return values and named return values later).
 - [ ] Make `Value_Constant` an expression.
-    - [ ] Get rid of `ri_is_expr_like`.
+    - [ ] Get rid of `ri_is_expr`.
 - [ ] C qualifiers:
     - https://www.oracle.com/technetwork/server-storage/solaris10/cc-restrict-139391.html
     - [ ] `const` qualifier
