@@ -816,14 +816,14 @@ enum ValueBoxKind {
         iptr size; \
     } blob
 
-typedef union ValueScalar {
+typedef union CoValS {
     VALUE_SCALAR_BOX_FIELDS;
-} ValueScalar;
+} CoValS;
 
 typedef union Value {
     VALUE_SCALAR_BOX_FIELDS;
     VALUE_SLICE_BOX_FIELDS;
-    ValueScalar S;
+    CoValS S;
 } Value;
 
 typedef struct ValueBox
@@ -833,7 +833,7 @@ typedef struct ValueBox
         VALUE_SCALAR_BOX_FIELDS;
         VALUE_SLICE_BOX_FIELDS;
         Value V;
-        ValueScalar S;
+        CoValS S;
     };
 } ValueBox;
 
@@ -972,8 +972,8 @@ int utf16_to_utf32(String16* utf16, String32* cache, Char32Array* utf32);
 // http://nothings.org/computer/judy/
 
 typedef struct Map {
-    ValueScalar *keys;
-    ValueScalar *values;
+    CoValS *keys;
+    CoValS *values;
     uint64_t count;
     uint64_t capacity;
 } Map;
@@ -982,9 +982,9 @@ typedef struct Map {
 void map_init(Map* map, iptr count);
 void map_purge(Map* map);
 void map_clear(Map* map);
-ValueScalar map_get(Map *map, const ValueScalar key);
-iptr map_find(Map *map, const ValueScalar key);
-int map_put(Map *map, const ValueScalar key, const ValueScalar val);
+CoValS map_get(Map *map, const CoValS key);
+iptr map_find(Map *map, const CoValS key);
+int map_put(Map *map, const CoValS key, const CoValS val);
 
 //
 // Arena
